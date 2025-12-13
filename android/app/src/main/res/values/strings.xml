@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">LLEVAME</string>
+    <string name="title_activity_main">LLEVAME</string>
+    <string name="package_name">com.llevame.app</string>
+    <string name="custom_url_scheme">com.llevame.app</string>
+    <string name="server_client_id">634861898408-pql24rj4dj9k8vl8lbgnt3ltgq0b423n.apps.googleusercontent.com</string>
+</resources>

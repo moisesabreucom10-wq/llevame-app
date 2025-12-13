@@ -1,0 +1,29 @@
+{
+  "appId": "com.llevame.app",
+  "appName": "LLEVAME",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  },
+  "android": {
+    "useLegacyBridge": true
+  },
+  "plugins": {
+    "StatusBar": {
+      "overlaysWebView": false,
+      "style": "Dark",
+      "backgroundColor": "#000000"
+    },
+    "FirebaseAuthentication": {
+      "skipNativeAuth": false,
+      "providers": [
+        "google.com"
+      ]
+    },
+    "BackgroundGeolocation": {
+      "backgroundMessage": "LLEVAME está rastreando tu ubicación para conectarte con pasajeros",
+      "backgroundTitle": "Conductor Activo"
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "634861898408",
+    "project_id": "llevame-app-24edf",
+    "storage_bucket": "llevame-app-24edf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:634861898408:android:f2f2dba7668c938d19509d",
+        "android_client_info": {
+          "package_name": "com.llevame.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "634861898408-f20tq5iagpdv8p5tn6me85turs760n1l.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.llevame.app",
+            "certificate_hash": "60d6c303c63f95b2d8b0f4ecc008e9fe3191a0cd"
+          }
+        },
+        {
+          "client_id": "634861898408-pql24rj4dj9k8vl8lbgnt3ltgq0b423n.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBfItBX3Ju37NAqzvO4ORh_CdntCYR_pFc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "634861898408-pql24rj4dj9k8vl8lbgnt3ltgq0b423n.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
