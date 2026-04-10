@@ -545,9 +545,9 @@ const RiderHome = () => {
 
     // 2. Main View
     return (
-        <div className="relative h-full w-full flex flex-col bg-slate-50">
+        <div className="relative h-full w-full flex flex-col bg-slate-50" style={{ isolation: 'isolate' }}>
             {/* Map Background */}
-            <div className="absolute inset-0 z-0">
+            <div className="absolute inset-0 z-0 overflow-hidden">
                 <Map
                     ref={mapRef}
                     className="w-full h-full"

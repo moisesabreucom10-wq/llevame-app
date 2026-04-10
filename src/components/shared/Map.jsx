@@ -47,10 +47,17 @@ const Map = forwardRef(({
     }));
 
     // 1. Initialize Map
+    const mapInstanceLocalRef = useRef(null);
+    const rendererLocalRef = useRef(null);
+
     useEffect(() => {
+        let mounted = true;
+
         const initMap = async () => {
             try {
                 const google = await loadGoogleMaps();
+                if (!mounted || !mapRef.current) return;
+
                 setGoogleApi(google);
 
                 const defaultLocation = { lat: 10.4806, lng: -66.9036 };
@@ -84,6 +91,14 @@ const Map = forwardRef(({
                     gestureHandling: 'greedy', // Best for mobile apps (one finger pan, pinch zoom)
                 });
 
+                if (!mounted) {
+                    // Component unmounted during async init — detach immediately
+                    try { google.maps.event.clearInstanceListeners(map); } catch (e) {}
+                    return;
+                }
+
+                mapInstanceLocalRef.current = map;
+
                 // Listen for center changes (dragging)
                 if (onCenterChange) {
                     map.addListener('center_changed', () => {
@@ -111,16 +126,52 @@ const Map = forwardRef(({
                         strokeOpacity: 0.8,
                         strokeWeight: 6
                     }
-                }); setDirectionsRenderer(renderer);
+                });
+                rendererLocalRef.current = renderer;
+                setDirectionsRenderer(renderer);
 
             } catch (error) {
                 console.error("Error loading map:", error);
             }
         };
 
-        if (!mapInstance) {
-            initMap();
-        }
+        initMap();
+
+        return () => {
+            mounted = false;
+
+            // Cancel all running marker animations
+            Object.values(activeAnimations.current).forEach(id => cancelAnimationFrame(id));
+            activeAnimations.current = {};
+
+            // Detach all custom markers from the map
+            Object.values(customMarkersRef.current).forEach(m => {
+                try { m.setMap(null); } catch (e) {}
+            });
+            customMarkersRef.current = {};
+
+            // Detach the location marker
+            if (markerRef.current) {
+                try { markerRef.current.setMap(null); } catch (e) {}
+                markerRef.current = null;
+            }
+
+            // Detach directions renderer
+            if (rendererLocalRef.current) {
+                try { rendererLocalRef.current.setMap(null); } catch (e) {}
+                rendererLocalRef.current = null;
+            }
+
+            // Clear all Google Maps event listeners on the map instance
+            if (mapInstanceLocalRef.current && window.google?.maps?.event) {
+                try { window.google.maps.event.clearInstanceListeners(mapInstanceLocalRef.current); } catch (e) {}
+            }
+
+            // Clear timeout
+            if (centerChangeTimeoutRef.current) clearTimeout(centerChangeTimeoutRef.current);
+
+            mapInstanceLocalRef.current = null;
+        };
     }, []);
 
     // 2. Handle map type changes
