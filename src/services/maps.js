@@ -1,4 +1,4 @@
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'AIzaSyCj31yOYezP6JjFU9NHPW1toRCQuICTKZs';
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'AIzaSyBfItBX3Ju37NAqzvO4ORh_CdntCYR_pFc';
 
 let googleMapsPromise = null;
 
@@ -13,7 +13,7 @@ export const loadGoogleMaps = () => {
 
     googleMapsPromise = new Promise((resolve, reject) => {
         const script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,marker,geometry&v=weekly`; // Added geometry library just in case
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,marker,geometry,distancematrix&v=weekly`;
         script.async = true;
         script.defer = true;
 
@@ -34,6 +34,47 @@ export const loadGoogleMaps = () => {
     });
 
     return googleMapsPromise;
+};
+
+export const getDistanceMatrix = async (origin, destination) => {
+    try {
+        const google = await loadGoogleMaps();
+        const service = new google.maps.DistanceMatrixService();
+
+        return new Promise((resolve, reject) => {
+            service.getDistanceMatrix(
+                {
+                    origins: [origin],
+                    destinations: [destination],
+                    travelMode: google.maps.TravelMode.DRIVING,
+                    drivingOptions: {
+                        departureTime: new Date(),
+                        trafficModel: google.maps.TrafficModel.BEST_GUESS
+                    },
+                    unitSystem: google.maps.UnitSystem.METRIC,
+                },
+                (response, status) => {
+                    if (status === 'OK') {
+                        const element = response.rows[0].elements[0];
+                        if (element.status === 'OK') {
+                            resolve({
+                                distance: element.distance,
+                                duration: element.duration,
+                                durationInTraffic: element.duration_in_traffic || element.duration
+                            });
+                        } else {
+                            resolve(null);
+                        }
+                    } else {
+                        resolve(null);
+                    }
+                }
+            );
+        });
+    } catch (error) {
+        console.error("Distance Matrix error:", error);
+        return null;
+    }
 };
 
 export const getReverseGeocode = async (lat, lng) => {
