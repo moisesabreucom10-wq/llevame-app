@@ -418,7 +418,7 @@ const RiderHome = () => {
                 onClick={toggleMapType}
                 className="bg-white p-3 rounded-full shadow-lg text-gray-700 hover:bg-gray-50"
             >
-                {mapType === 'roadmap' ? <Layers size={24} /> : <MapIcon size={24} />}
+                {mapType === 'normal' ? <Layers size={24} /> : <MapIcon size={24} />}
             </button>
             <button
                 onClick={handleLocateMe}
@@ -438,7 +438,7 @@ const RiderHome = () => {
                 {/* NativeMapView ocupa toda la pantalla en modo selección */}
                 <NativeMapView
                     mapType={mapType}
-                    onLocationUpdate={(lat, lng) => setMapCenter({ lat, lng })}
+                    onCameraMove={(lat, lng) => setMapCenter({ lat, lng })}
                 />
 
                 {renderMapControls()}
@@ -481,10 +481,7 @@ const RiderHome = () => {
             <div className="absolute inset-0 z-0">
                 <NativeMapView
                     mapType={mapType}
-                    onLocationUpdate={(lat, lng, speed, bearing) => {
-                        // Actualizar centro del mapa para selección manual
-                        setMapCenter({ lat, lng });
-                    }}
+                    onCameraMove={(lat, lng) => setMapCenter({ lat, lng })}
                 />
             </div>
 

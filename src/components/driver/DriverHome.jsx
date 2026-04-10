@@ -402,14 +402,11 @@ const DriverHome = () => {
                                 {/* Actions Area */}
                                 {currentTrip.status === 'accepted' ? (
                                     <div className="space-y-3">
-                                        {/* Navigation Button */}
-                                        <button
-                                            onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${currentTrip.pickup.coordinates.lat},${currentTrip.pickup.coordinates.lng}&travelmode=driving`, '_system')}
-                                            className="w-full py-4 bg-white border-2 border-indigo-50 text-indigo-600 font-bold rounded-2xl flex items-center justify-center gap-2 shadow-sm hover:bg-gray-50 active:scale-[0.98] transition-all"
-                                        >
-                                            <Navigation size={20} className="fill-indigo-600" />
-                                            Navegar
-                                        </button>
+                                        {/* Instrucción de navegación activa */}
+                                        <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
+                                            <Navigation size={18} className="text-blue-600 shrink-0" />
+                                            <p className="text-sm text-blue-700 font-medium">Navegación turn-by-turn activa</p>
+                                        </div>
 
                                         {/* Start Trip Button */}
                                         <button

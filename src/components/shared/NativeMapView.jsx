@@ -25,6 +25,7 @@ const NativeMapView = ({
     onReroute,
     onNavigationEvent,
     onSpeedAlert,
+    onCameraMove,
     mapType = 'normal',
     className = '',
 }) => {
@@ -76,6 +77,9 @@ const NativeMapView = ({
                     }),
                     NavigationPlugin.addListener(NAV_EVENTS.SPEED_ALERT, (data) => {
                         onSpeedAlert?.(data.currentSpeed, data.speedLimit, data.isOver);
+                    }),
+                    NavigationPlugin.addListener(NAV_EVENTS.CAMERA_MOVE, (data) => {
+                        onCameraMove?.(data.lat, data.lng);
                     }),
                 ];
                 listenersRef.current = listeners;

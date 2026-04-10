@@ -4,6 +4,26 @@ import { db } from '../../services/firebase';
 import { collection, query, where, limit, onSnapshot } from 'firebase/firestore';
 import { Calendar, MapPin, DollarSign, Clock, XCircle, CheckCircle } from 'lucide-react';
 
+const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+const getStaticMapUrl = (pickup, dropoff) => {
+    if (!pickup?.coordinates || !dropoff?.coordinates) return null;
+    const { lat: lat1, lng: lng1 } = pickup.coordinates;
+    const { lat: lat2, lng: lng2 } = dropoff.coordinates;
+    const origin = `${lat1},${lng1}`;
+    const dest = `${lat2},${lng2}`;
+    const params = new URLSearchParams({
+        size: '600x160',
+        scale: '2',
+        maptype: 'roadmap',
+        markers: `color:green|label:A|${origin}`,
+        path: `color:0x4F46E5CC|weight:4|${origin}|${dest}`,
+        key: MAPS_KEY,
+    });
+    // Add destination marker separately
+    return `https://maps.googleapis.com/maps/api/staticmap?${params}&markers=color:red|label:B|${dest}`;
+};
+
 const TripsHistory = () => {
     const { currentUser, userProfile } = useAuth();
     const [trips, setTrips] = useState([]);
@@ -155,6 +175,22 @@ const TripsHistory = () => {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Mapa estático de la ruta */}
+                        {(() => {
+                            const mapUrl = getStaticMapUrl(trip.pickup, trip.dropoff);
+                            return mapUrl ? (
+                                <div className="mb-4 rounded-xl overflow-hidden border border-gray-100 bg-gray-50 h-24">
+                                    <img
+                                        src={mapUrl}
+                                        alt="Ruta del viaje"
+                                        className="w-full h-full object-cover"
+                                        loading="lazy"
+                                        onError={(e) => { e.target.closest('div').style.display = 'none'; }}
+                                    />
+                                </div>
+                            ) : null;
+                        })()}
 
                         {/* Footer: Price & Payment */}
                         <div className="flex justify-between items-center pt-2">

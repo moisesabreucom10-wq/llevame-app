@@ -157,6 +157,12 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
         googleMap.getUiSettings().setMapToolbarEnabled(false);
         googleMap.getUiSettings().setZoomControlsEnabled(false);
 
+        // Emitir posición de cámara cuando el usuario mueve el mapa (para selección manual)
+        googleMap.setOnCameraMoveListener(() -> {
+            LatLng center = googleMap.getCameraPosition().target;
+            plugin.emitCameraMove(center.latitude, center.longitude);
+        });
+
         // Emitir evento de mapa listo
         plugin.emitNavigationEvent("mapReady", null);
     }

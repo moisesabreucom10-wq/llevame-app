@@ -181,4 +181,11 @@ public class NavigationPlugin extends Plugin {
         data.put("isOver", currentSpeed > speedLimit);
         notifyListeners("onSpeedAlert", data);
     }
+
+    public void emitCameraMove(double lat, double lng) {
+        JSObject data = new JSObject();
+        data.put("lat", lat);
+        data.put("lng", lng);
+        notifyListeners("onCameraMove", data);
+    }
 }

@@ -57,4 +57,5 @@ export const NAV_EVENTS = {
     REROUTE:          'onReroute',
     NAVIGATION_EVENT: 'onNavigationEvent',
     SPEED_ALERT:      'onSpeedAlert',
+    CAMERA_MOVE:      'onCameraMove',
 };
