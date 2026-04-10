@@ -14,7 +14,7 @@ import { db } from '../../services/firebase';
 const DriverHome = () => {
     const { nearbyTrips, currentTrip, acceptTrip, startTrip, completeTrip, isDriverOnline, setIsDriverOnline } = useTrip();
     const { userProfile, currentUser } = useAuth();
-    const { currentLocation, getCurrentPosition } = useLocation();
+    const { currentLocation, getCurrentPosition, updateLocation } = useLocation();
     const map = useNativeMap();
 
     // UI State
@@ -32,6 +32,7 @@ const DriverHome = () => {
     const [isNavigating, setIsNavigating] = useState(false);
     const [audioMuted, setAudioMuted] = useState(false);
     const [speedInfo, setSpeedInfo] = useState({ current: 0, limit: 0, isOver: false });
+    const [isRerouting, setIsRerouting] = useState(false);
 
     // Fetch BCV Rate
     useEffect(() => {
@@ -142,6 +143,11 @@ const DriverHome = () => {
     // ─────────────────────────────────────────────
     // Navigation event handlers
     // ─────────────────────────────────────────────
+    const handleReroute = useCallback(() => {
+        setIsRerouting(true);
+        setTimeout(() => setIsRerouting(false), 3500);
+    }, []);
+
     const handleNavEvent = useCallback((event, data) => {
         if (event === 'navigationFinished') {
             setIsNavigating(false);
@@ -306,11 +312,21 @@ const DriverHome = () => {
                 <div className="absolute inset-0 z-0">
                     <NativeMapView
                         mapType={mapType}
+                        onLocationUpdate={(lat, lng, speed, bearing) => updateLocation(lat, lng, bearing, speed)}
                         onArrival={handleArrival}
                         onNavigationEvent={handleNavEvent}
                         onSpeedAlert={handleSpeedAlert}
+                        onReroute={handleReroute}
                     />
                 </div>
+
+                {/* Banner de recalculando ruta */}
+                {isRerouting && (
+                    <div className="absolute top-16 left-4 right-4 z-20 bg-blue-600 text-white px-4 py-2.5 rounded-xl shadow-lg text-center text-sm font-bold flex items-center justify-center gap-2">
+                        <Navigation size={16} className="animate-spin" />
+                        Recalculando ruta...
+                    </div>
+                )}
 
                 {/* Badge de velocidad cuando supera el límite */}
                 {speedInfo.isOver && (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import NativeMapView from '../shared/NativeMapView';
 import PlaceSearch from '../shared/PlaceSearch';
 import { MapPin, Navigation, Search, MessageCircle, Phone, X, AlertCircle, Compass, Layers, Locate, Minus, Plus, ChevronDown, ChevronUp, Map as MapIcon, User, Star, Car, Clock, ArrowLeft, DollarSign, Package } from 'lucide-react';
@@ -20,7 +20,6 @@ const RiderHome = () => {
     // Trip Request State
     const [destination, setDestination] = useState('');
     const [destinationAddress, setDestinationAddress] = useState(''); // Added missing state
-    const [centerTrigger, setCenterTrigger] = useState(0);
     const [destinationLocation, setDestinationLocation] = useState(null);
     const [isPanelExpanded, setIsPanelExpanded] = useState(true); // Control panel visibility
     const [estimatedDetails, setEstimatedDetails] = useState(null);
@@ -85,11 +84,6 @@ const RiderHome = () => {
             Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
             Math.sin(dLon / 2) * Math.sin(dLon / 2);
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    };
-
-    // deg2rad ya no es necesario (inline arriba), pero se mantiene por si hay otros usos
-    const deg2rad = (deg) => {
-        return deg * (Math.PI / 180);
     };
 
     // Listen for real nearby drivers from 'online_drivers'

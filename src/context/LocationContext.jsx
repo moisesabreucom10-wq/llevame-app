@@ -154,6 +154,18 @@ export const LocationProvider = ({ children }) => {
         };
     }, []);
 
+    // Permite a componentes externos (ej. DriverHome con Navigation SDK) inyectar
+    // una ubicación más precisa (road-snapped) durante la navegación activa.
+    const updateLocation = useCallback((lat, lng, heading = null, speed = null) => {
+        setCurrentLocation(prev => ({
+            ...prev,
+            lat,
+            lng,
+            ...(heading !== null && { heading }),
+            ...(speed !== null && { speed }),
+        }));
+    }, []);
+
     return (
         <LocationContext.Provider value={{
             currentLocation,
@@ -161,7 +173,8 @@ export const LocationProvider = ({ children }) => {
             getCurrentPosition,
             startBackgroundTracking,
             stopBackgroundTracking,
-            isBackgroundTrackingActive
+            isBackgroundTrackingActive,
+            updateLocation,
         }}>
             {children}
         </LocationContext.Provider>
