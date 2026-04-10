@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Home, Map, User } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -7,8 +7,6 @@ const Layout = () => {
     const { userProfile } = useAuth();
     const location = useLocation();
     const navigate = useNavigate();
-    const [direction, setDirection] = useState('forward');
-
     const isDriver = userProfile?.userType === 'driver';
 
     const navItems = isDriver ? [
@@ -22,27 +20,14 @@ const Layout = () => {
     ];
 
     const handleNavigation = (path) => {
-        const currentIndex = navItems.findIndex(item => item.path === location.pathname);
-        const targetIndex = navItems.findIndex(item => item.path === path);
-
-        setDirection(targetIndex > currentIndex ? 'forward' : 'backward');
         navigate(path);
     };
 
     return (
         <div className="h-screen bg-slate-50 flex flex-col">
-            {/* Main Content Area with Slide Animation */}
+            {/* Main Content Area */}
             <main className="flex-1 relative overflow-hidden">
-                <div
-                    key={location.pathname}
-                    className={`h-full w-full ${direction === 'forward'
-                            ? 'animate-slideInRight'
-                            : 'animate-slideInLeft'
-                        }`}
-                    style={{
-                        animation: `${direction === 'forward' ? 'slideInRight' : 'slideInLeft'} 0.3s cubic-bezier(0.4, 0, 0.2, 1)`
-                    }}
-                >
+                <div className="h-full w-full">
                     <Outlet />
                 </div>
             </main>
@@ -93,37 +78,10 @@ const Layout = () => {
 
             {/* CSS Animations */}
             <style>{`
-                @keyframes slideInRight {
-                    from {
-                        transform: translateX(100%);
-                        opacity: 0;
-                    }
-                    to {
-                        transform: translateX(0);
-                        opacity: 1;
-                    }
-                }
-
-                @keyframes slideInLeft {
-                    from {
-                        transform: translateX(-100%);
-                        opacity: 0;
-                    }
-                    to {
-                        transform: translateX(0);
-                        opacity: 1;
-                    }
-                }
-
                 @keyframes bounce-subtle {
-                    0%, 100% {
-                        transform: translateY(0);
-                    }
-                    50% {
-                        transform: translateY(-4px);
-                    }
+                    0%, 100% { transform: translateY(0); }
+                    50% { transform: translateY(-4px); }
                 }
-
                 .animate-bounce-subtle {
                     animation: bounce-subtle 0.6s ease-in-out;
                 }
