@@ -21,6 +21,10 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // Navigation SDK for Android — repositorio privado de Google
+        maven {
+            url 'https://artifact.navigation.google.com/maven2'
+        }
     }
 }
 

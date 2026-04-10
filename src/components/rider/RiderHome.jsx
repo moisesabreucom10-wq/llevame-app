@@ -1,31 +1,21 @@
-import React, { useState, useEffect, useRef } from 'react';
-import Map from '../shared/Map';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import NativeMapView from '../shared/NativeMapView';
 import PlaceSearch from '../shared/PlaceSearch';
-import { MapPin, Navigation, Search, Menu, MessageCircle, Phone, X, AlertCircle, Compass, Layers, Locate, Minus, Plus, Settings, ChevronDown, ChevronUp, Map as MapIcon, User, Star, Car, Clock, ArrowLeft, DollarSign, Package } from 'lucide-react';
+import { MapPin, Navigation, Search, MessageCircle, Phone, X, AlertCircle, Compass, Layers, Locate, Minus, Plus, ChevronDown, ChevronUp, Map as MapIcon, User, Star, Car, Clock, ArrowLeft, DollarSign, Package } from 'lucide-react';
 import Chat from '../shared/Chat';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { loadGoogleMaps, getReverseGeocode } from '../../services/maps';
+import { reverseGeocode } from '../../services/geocodingService';
+import { calculateFare } from '../../services/distanceMatrixService';
+import { useNativeMap } from '../../hooks/useNativeMap';
 import { useTrip } from '../../context/TripContext';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation } from '../../context/LocationContext';
 import PaymentMethodSelector from '../shared/PaymentMethodSelector';
 
-
-let _riderInstanceCount = 0;
-
 const RiderHome = () => {
-    const { currentUser } = useAuth(); // Needed for Chat
+    const { currentUser } = useAuth();
+    const map = useNativeMap();
     const [showRequestModal, setShowRequestModal] = useState(false);
-    const mapRef = useRef(null);
-
-    useEffect(() => {
-        _riderInstanceCount++;
-        console.warn(`[RiderHome] MOUNTED. Total instances: ${_riderInstanceCount}`);
-        return () => {
-            _riderInstanceCount--;
-            console.warn(`[RiderHome] UNMOUNTED. Remaining: ${_riderInstanceCount}`);
-        };
-    }, []);
 
     // Trip Request State
     const [destination, setDestination] = useState('');
@@ -74,7 +64,7 @@ const RiderHome = () => {
     }, []);
 
     // Map State
-    const [mapType, setMapType] = useState(() => localStorage.getItem('llevame_mapType') || 'roadmap'); // 'roadmap' | 'satellite'
+    const [mapType, setMapType] = useState(() => localStorage.getItem('llevame_mapType') || 'normal');
     const [isSelectingOnMap, setIsSelectingOnMap] = useState(false);
     const [mapCenter, setMapCenter] = useState(null);
 
@@ -82,22 +72,22 @@ const RiderHome = () => {
     const { currentLocation, getCurrentPosition } = useLocation();
     const [hasCenteredInitial, setHasCenteredInitial] = useState(false);
     const [nearbyDrivers, setNearbyDrivers] = useState([]);
-    const [selectedDriver, setSelectedDriver] = useState(null); // To show info modal
+    const [selectedDriver, setSelectedDriver] = useState(null);
     const [isChatOpen, setIsChatOpen] = useState(false);
 
-    // Haversine formula to calculate distance in km
+    // Haversine — solo para filtro de conductores cercanos (no requiere API)
     const getDistanceFromLatLonInKm = (lat1, lon1, lat2, lon2) => {
-        const R = 6371; // Radius of the earth in km
-        const dLat = deg2rad(lat2 - lat1);
-        const dLon = deg2rad(lon2 - lon1);
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
         const a =
             Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
             Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c; // Distance in km
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     };
 
+    // deg2rad ya no es necesario (inline arriba), pero se mantiene por si hay otros usos
     const deg2rad = (deg) => {
         return deg * (Math.PI / 180);
     };
@@ -149,14 +139,10 @@ const RiderHome = () => {
 
     // Initial Center on Location
     useEffect(() => {
-        if (currentLocation && !hasCenteredInitial && mapRef.current) {
+        if (currentLocation && !hasCenteredInitial) {
             setHasCenteredInitial(true);
-            // Small timeout to allow map to be ready
             setTimeout(() => {
-                if (mapRef.current) {
-                    mapRef.current.panTo({ lat: currentLocation.lat, lng: currentLocation.lng });
-                    mapRef.current.setZoom(16);
-                }
+                map.animateCamera({ lat: currentLocation.lat, lng: currentLocation.lng, zoom: 16 });
             }, 500);
         }
     }, [currentLocation, hasCenteredInitial]);
@@ -173,10 +159,15 @@ const RiderHome = () => {
             setDestination(place.name);
             setDestinationAddress(place.address);
             setDestinationLocation(place.coordinates);
+            // Calcular tarifa real con Distance Matrix API
+            if (currentLocation) {
+                handleDestinationSelected(place.coordinates, currentLocation);
+            }
         } else {
             setDestination('');
             setDestinationAddress('');
             setDestinationLocation(null);
+            setEstimatedDetails(null);
         }
     };
 
@@ -186,38 +177,35 @@ const RiderHome = () => {
     };
 
     const confirmMapSelection = async () => {
-        let center = mapCenter;
-
-        // Force get fresh center from map instance if available
-        if (mapRef.current && mapRef.current.getCenter) {
-            const fresh = mapRef.current.getCenter();
-            if (fresh) center = fresh;
-        }
+        // mapCenter se actualiza via onLocationUpdate cuando el usuario mueve el mapa
+        const center = mapCenter;
 
         if (center) {
-            // Set coordinates immediately
             setDestinationLocation(center);
             const coordsString = `${center.lat.toFixed(4)}, ${center.lng.toFixed(4)}`;
-            setDestination(`Ubicación (${coordsString})`); // Temporary default
+            setDestination(`Ubicación (${coordsString})`);
             setDestinationAddress(coordsString);
 
             setIsSelectingOnMap(false);
             setShowRequestModal(true);
 
-            // Fetch real address
+            // Geocoding inverso via REST
             try {
-                const address = await getReverseGeocode(center.lat, center.lng);
+                const address = await reverseGeocode(center.lat, center.lng);
                 if (address) {
-                    setDestination(address); // Shows: "Av. Bolívar, Charallave"
+                    setDestination(address);
                     setDestinationAddress(address);
                 }
             } catch (error) {
-                console.warn("Geocoding failed", error);
+                console.warn('Geocoding failed', error);
             }
 
+            // Calcular tarifa con Distance Matrix
+            if (currentLocation) {
+                handleDestinationSelected(center, currentLocation);
+            }
         } else {
-            console.error("ConfirmMapSelection: No center detected");
-            alert("Mueve el mapa ligeramente para confirmar la ubicación.");
+            alert('Mueve el mapa ligeramente para confirmar la ubicación.');
         }
     };
 
@@ -311,149 +299,95 @@ const RiderHome = () => {
     };
 
     const toggleMapType = () => {
-        // Use 'hybrid' instead of 'satellite' to ensure labels/street names are visible
-        const newType = mapType === 'roadmap' ? 'hybrid' : 'roadmap';
+        const newType = mapType === 'normal' ? 'hybrid' : 'normal';
         setMapType(newType);
+        map.setMapType(newType);
         localStorage.setItem('llevame_mapType', newType);
     };
 
-    const handleDirectionsResult = (result) => {
-        setEstimatedDetails(result);
-    };
+    // Calcula tarifa real usando Distance Matrix API cuando se selecciona destino
+    const handleDestinationSelected = useCallback(async (destination, origin) => {
+        if (!destination || !origin) { setEstimatedDetails(null); return; }
+        const fare = await calculateFare(origin, destination, bcvRate, vehicleType);
+        if (fare) {
+            setEstimatedDetails({
+                distance: { text: `${fare.km} km`, value: fare.km * 1000 },
+                duration: { text: `${fare.minutes} min`, value: fare.minutes * 60 },
+                usd: fare.usd,
+                bs: fare.bs,
+            });
+        }
+    }, [bcvRate, vehicleType]);
 
-    const handleZoomIn = () => {
-        if (mapRef.current) mapRef.current.zoomIn();
-    };
-
-    const handleZoomOut = () => {
-        if (mapRef.current) mapRef.current.zoomOut();
-    };
+    const handleZoomIn = () => map.animateCamera({ zoom: 17 });
+    const handleZoomOut = () => map.animateCamera({ zoom: 13 });
 
     const handleLocateMe = () => {
         getCurrentPosition();
-        setCenterTrigger(prev => prev + 1);
+        if (currentLocation) {
+            map.animateCamera({ lat: currentLocation.lat, lng: currentLocation.lng, zoom: 16 });
+        }
     };
 
     // Calculate markers with minimalist flat design + Labels
-    const getMarkers = () => {
-        const markers = [];
-        // Safety check: Ensure Google Maps API is loaded before accessing .maps
-        if (!window.google || !window.google.maps) return markers;
+    // SVG icons (base64-encoded para el plugin nativo)
+    const CAR_SVG = `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="11" fill="white" stroke="#E5E7EB" stroke-width="1"/><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5H6.5C5.84 5 5.29 5.42 5.08 6.01L3 12V20C3 20.55 3.45 21 4 21H5C5.55 21 6 20.55 6 20V19H18V20C18 20.55 18.45 21 19 21H20C20.55 21 21 20.55 21 20V12L18.92 6.01ZM6.5 16C5.67 16 5 15.33 5 14.5C5 13.67 5.67 13 6.5 13C7.33 13 8 13.67 8 14.5C8 15.33 7.33 16 6.5 16ZM17.5 16C16.67 16 16 15.33 16 14.5C16 13.67 16.67 13 17.5 13C18.33 13 19 13.67 19 14.5C19 15.33 18.33 16 17.5 16ZM5 11L6.5 6.5H17.5L19 11H5Z" fill="#6B7280"/></svg>`;
+    const GREEN_PIN_SVG = `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13 15.87 2 12 2Z" fill="#10B981" stroke="white" stroke-width="1"/><text x="12" y="13" font-family="Arial" font-size="10" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle">A</text></svg>`;
+    const RED_PIN_SVG = `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13 15.87 2 12 2Z" fill="#EF4444" stroke="white" stroke-width="1"/><text x="12" y="13" font-family="Arial" font-size="10" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle">B</text></svg>`;
 
+    const svgToBase64 = (svg) => btoa(unescape(encodeURIComponent(svg)));
 
-        // Determine if we should show trip markers or available cars
+    // Sincronizar marcadores en el mapa nativo cuando cambia el estado
+    useEffect(() => {
+        map.clearMarkers();
+
         if (!currentTrip) {
-            // Show available cars if no trip is active
-            if (nearbyDrivers && nearbyDrivers.length > 0) {
-                const CAR_MINIMAL = `
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-                            <feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#000000" flood-opacity="0.3"/>
-                        </filter>
-                        <g filter="url(#shadow)">
-                            <circle cx="12" cy="12" r="11" fill="white" stroke="#E5E7EB" stroke-width="1"/>
-                            <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5H6.5C5.84 5 5.29 5.42 5.08 6.01L3 12V20C3 20.55 3.45 21 4 21H5C5.55 21 6 20.55 6 20V19H18V20C18 20.55 18.45 21 19 21H20C20.55 21 21 20.55 21 20V12L18.92 6.01ZM6.5 16C5.67 16 5 15.33 5 14.5C5 13.67 5.67 13 6.5 13C7.33 13 8 13.67 8 14.5C8 15.33 7.33 16 6.5 16ZM17.5 16C16.67 16 16 15.33 16 14.5C16 13.67 16.67 13 17.5 13C18.33 13 19 13.67 19 14.5C19 15.33 18.33 16 17.5 16ZM5 11L6.5 6.5H17.5L19 11H5Z" fill="#6B7280"/>
-                        </g>
-                    </svg>
-                `;
-
-                nearbyDrivers.forEach(driver => {
-                    markers.push({
-                        id: driver.id,
-                        position: driver.position,
-                        title: 'Conductor cercano',
-                        icon: {
-                            url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(CAR_MINIMAL),
-                            scaledSize: new window.google.maps.Size(32, 32),
-                            anchor: new window.google.maps.Point(16, 16)
-                        },
-                        rotation: driver.heading
-                    });
+            // Mostrar conductores cercanos disponibles
+            nearbyDrivers.forEach(driver => {
+                map.addMarker({
+                    id: driver.id,
+                    lat: driver.position.lat,
+                    lng: driver.position.lng,
+                    title: 'Conductor cercano',
+                    svgBase64: svgToBase64(CAR_SVG),
+                    width: 32, height: 32,
                 });
-            }
-            return markers;
+            });
+            return;
         }
 
-        // Pickup point (Minimalist Green Pin with 'A')
+        // Viaje activo: mostrar pickup, dropoff y conductor
         if (currentTrip.pickup?.coordinates) {
-            const GREEN_PIN_MINIMAL = `
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-                        <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.3"/>
-                    </filter>
-                    <g filter="url(#shadow)">
-                        <path d="M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13 15.87 2 12 2Z" fill="#10B981" stroke="white" stroke-width="1"/>
-                        <text x="12" y="13" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle">A</text>
-                    </g>
-                </svg>
-            `;
-
-            markers.push({
+            map.addMarker({
                 id: 'pickup',
-                position: currentTrip.pickup.coordinates,
+                lat: currentTrip.pickup.coordinates.lat,
+                lng: currentTrip.pickup.coordinates.lng,
                 title: 'Recogida',
-                icon: {
-                    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(GREEN_PIN_MINIMAL),
-                    scaledSize: new window.google.maps.Size(40, 40),
-                    anchor: new window.google.maps.Point(20, 40)
-                }
+                svgBase64: svgToBase64(GREEN_PIN_SVG),
+                width: 40, height: 40,
             });
         }
-
-        // Dropoff point (Minimalist Red Pin with 'B')
         if (currentTrip.dropoff?.coordinates) {
-            const RED_PIN_MINIMAL = `
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-                        <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.3"/>
-                    </filter>
-                    <g filter="url(#shadow)">
-                        <path d="M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13 15.87 2 12 2Z" fill="#EF4444" stroke="white" stroke-width="1"/>
-                        <text x="12" y="13" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle">B</text>
-                    </g>
-                </svg>
-            `;
-
-            markers.push({
+            map.addMarker({
                 id: 'dropoff',
-                position: currentTrip.dropoff.coordinates,
+                lat: currentTrip.dropoff.coordinates.lat,
+                lng: currentTrip.dropoff.coordinates.lng,
                 title: 'Destino',
-                icon: {
-                    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(RED_PIN_MINIMAL),
-                    scaledSize: new window.google.maps.Size(40, 40),
-                    anchor: new window.google.maps.Point(20, 40)
-                }
+                svgBase64: svgToBase64(RED_PIN_SVG),
+                width: 40, height: 40,
             });
         }
-
-        // Driver (Minimalist Car)
         if (currentTrip.driverLocation) {
-            const CAR_MINIMAL = `
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-                        <feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#000000" flood-opacity="0.3"/>
-                    </filter>
-                    <g filter="url(#shadow)">
-                        <circle cx="12" cy="12" r="11" fill="white" stroke="#E5E7EB" stroke-width="1"/>
-                        <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5H6.5C5.84 5 5.29 5.42 5.08 6.01L3 12V20C3 20.55 3.45 21 4 21H5C5.55 21 6 20.55 6 20V19H18V20C18 20.55 18.45 21 19 21H20C20.55 21 21 20.55 21 20V12L18.92 6.01ZM6.5 16C5.67 16 5 15.33 5 14.5C5 13.67 5.67 13 6.5 13C7.33 13 8 13.67 8 14.5C8 15.33 7.33 16 6.5 16ZM17.5 16C16.67 16 16 15.33 16 14.5C16 13.67 16.67 13 17.5 13C18.33 13 19 13.67 19 14.5C19 15.33 18.33 16 17.5 16ZM5 11L6.5 6.5H17.5L19 11H5Z" fill="#1F2937"/>
-                    </g>
-                </svg>
-            `;
-
-            markers.push({
+            map.addMarker({
                 id: 'driver',
-                position: currentTrip.driverLocation,
+                lat: currentTrip.driverLocation.lat,
+                lng: currentTrip.driverLocation.lng,
                 title: 'Conductor',
-                icon: {
-                    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(CAR_MINIMAL),
-                    scaledSize: new window.google.maps.Size(40, 40),
-                    anchor: new window.google.maps.Point(20, 20)
-                }
+                svgBase64: svgToBase64(CAR_SVG),
+                width: 40, height: 40,
             });
         }
-
-        return markers;
-    };
+    }, [currentTrip, nearbyDrivers]);
 
     // --- RENDER HELPERS ---
 
@@ -501,13 +435,10 @@ const RiderHome = () => {
     if (isSelectingOnMap) {
         return (
             <div className="relative h-full w-full">
-                <Map
-                    ref={mapRef}
-                    className="w-full h-full"
+                {/* NativeMapView ocupa toda la pantalla en modo selección */}
+                <NativeMapView
                     mapType={mapType}
-                    initialCenter={destinationLocation} // Use selected destination as initial center if available
-                    onCenterChange={setMapCenter}
-                    centerOnLocationTrigger={centerTrigger}
+                    onLocationUpdate={(lat, lng) => setMapCenter({ lat, lng })}
                 />
 
                 {renderMapControls()}
@@ -545,19 +476,15 @@ const RiderHome = () => {
 
     // 2. Main View
     return (
-        <div className="relative h-full w-full flex flex-col bg-slate-50" style={{ isolation: 'isolate' }}>
-            {/* Map Background */}
-            <div className="absolute inset-0 z-0 overflow-hidden">
-                <Map
-                    ref={mapRef}
-                    className="w-full h-full"
+        <div className="relative h-full w-full flex flex-col">
+            {/* Mapa nativo — transparente, el NavigationView está detrás del WebView */}
+            <div className="absolute inset-0 z-0">
+                <NativeMapView
                     mapType={mapType}
-                    origin={currentTrip ? currentTrip.pickup.coordinates : (showRequestModal && destinationLocation ? currentLocation : null)}
-                    destination={currentTrip ? currentTrip.dropoff.coordinates : (showRequestModal ? destinationLocation : null)}
-                    showDirections={!!currentTrip || (showRequestModal && !!destinationLocation)}
-                    onDirectionsResult={handleDirectionsResult}
-                    centerOnLocationTrigger={centerTrigger}
-                    markers={getMarkers()} // Pass custom markers
+                    onLocationUpdate={(lat, lng, speed, bearing) => {
+                        // Actualizar centro del mapa para selección manual
+                        setMapCenter({ lat, lng });
+                    }}
                 />
             </div>
 

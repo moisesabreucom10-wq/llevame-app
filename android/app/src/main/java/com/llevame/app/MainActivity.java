@@ -12,6 +12,9 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Registrar NavigationPlugin antes de que el bridge de Capacitor inicialice
+        registerPlugin(NavigationPlugin.class);
+
         super.onCreate(savedInstanceState);
 
         // Configurar barra de estado negra sólida

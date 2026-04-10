@@ -1,34 +1,37 @@
-import React, { useState, useRef, useEffect } from 'react';
-import Map from '../shared/Map';
-import { Power, Map as MapIcon, Navigation, Layers, CheckCircle, Clock, Plus, Minus, Compass, Locate, MessageCircle, Bell, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import NativeMapView from '../shared/NativeMapView';
+import { Power, Map as MapIcon, Navigation, Layers, CheckCircle, Clock, Plus, Minus, Compass, Locate, MessageCircle, Bell, ChevronDown, ChevronUp, Volume2, VolumeX } from 'lucide-react';
 import Chat from '../shared/Chat';
 import { useTrip } from '../../context/TripContext';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation } from '../../context/LocationContext';
+import { useNativeMap } from '../../hooks/useNativeMap';
+import { snapSinglePoint } from '../../services/roadsService';
 
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 
 const DriverHome = () => {
-    // Consume global online state
     const { nearbyTrips, currentTrip, acceptTrip, startTrip, completeTrip, isDriverOnline, setIsDriverOnline } = useTrip();
-    const { userProfile, currentUser } = useAuth(); // Need currentUser for ID
+    const { userProfile, currentUser } = useAuth();
     const { currentLocation, getCurrentPosition } = useLocation();
-    const mapRef = useRef(null);
+    const map = useNativeMap();
 
-    // UI State (Local visual only)
-    const [stats, setStats] = useState({ trips: 0, earnings: 0 }); // Real stats
-    const [mapType, setMapType] = useState(() => localStorage.getItem('llevame_mapType') || 'roadmap');
-    const [centerTrigger, setCenterTrigger] = useState(0);
+    // UI State
+    const [stats, setStats] = useState({ trips: 0, earnings: 0 });
+    const [mapType, setMapType] = useState(() => localStorage.getItem('llevame_mapType') || 'normal');
     const [isCompassActive, setIsCompassActive] = useState(false);
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [tripDetails, setTripDetails] = useState(null);
     const [hasCenteredInitial, setHasCenteredInitial] = useState(false);
     const [isPanelExpanded, setIsPanelExpanded] = useState(true);
-    const [bcvRate, setBcvRate] = useState(60.00); // Default Fallback
-
-    // Panels State
+    const [bcvRate, setBcvRate] = useState(60.00);
     const [showBottomPanel, setShowBottomPanel] = useState(true);
+
+    // Navigation state
+    const [isNavigating, setIsNavigating] = useState(false);
+    const [audioMuted, setAudioMuted] = useState(false);
+    const [speedInfo, setSpeedInfo] = useState({ current: 0, limit: 0, isOver: false });
 
     // Fetch BCV Rate
     useEffect(() => {
@@ -72,26 +75,98 @@ const DriverHome = () => {
 
     // Initial Center on Location
     useEffect(() => {
-        if (currentLocation && !hasCenteredInitial && mapRef.current) {
+        if (currentLocation && !hasCenteredInitial) {
             setHasCenteredInitial(true);
-            // Small timeout to allow map to be ready
             setTimeout(() => {
-                if (mapRef.current) {
-                    mapRef.current.panTo({ lat: currentLocation.lat, lng: currentLocation.lng });
-                    mapRef.current.setZoom(16);
-                }
-            }, 500);
+                map.animateCamera({ lat: currentLocation.lat, lng: currentLocation.lng, zoom: 16 });
+            }, 600);
         }
     }, [currentLocation, hasCenteredInitial]);
 
-    // Reset details when trip changes
+    // ─────────────────────────────────────────────
+    // Activar navegación turn-by-turn cuando se acepta un viaje
+    // ─────────────────────────────────────────────
     useEffect(() => {
-        setTripDetails(null);
-    }, [currentTrip?.id]);
+        if (!currentTrip) {
+            // Viaje completado o cancelado — detener navegación
+            if (isNavigating) {
+                map.stopNavigation();
+                setIsNavigating(false);
+            }
+            return;
+        }
 
-    const handleDirectionsResult = (result) => {
-        setTripDetails(result);
-    };
+        const launchNavigation = async () => {
+            let waypoint = null;
+
+            if (currentTrip.status === 'accepted' && currentTrip.pickup?.coordinates) {
+                waypoint = { ...currentTrip.pickup.coordinates, title: 'Pasajero' };
+            } else if (currentTrip.status === 'in_progress' && currentTrip.dropoff?.coordinates) {
+                waypoint = { ...currentTrip.dropoff.coordinates, title: 'Destino' };
+            }
+
+            if (waypoint) {
+                const result = await map.setRoute([waypoint]);
+                if (result?.success) {
+                    await map.startNavigation();
+                    setIsNavigating(true);
+                }
+            }
+        };
+
+        launchNavigation();
+    }, [currentTrip?.id, currentTrip?.status]);
+
+    // ─────────────────────────────────────────────
+    // Marcadores en el mapa (conductores, pickup, dropoff)
+    // ─────────────────────────────────────────────
+    const svgToBase64 = (svg) => btoa(unescape(encodeURIComponent(svg)));
+    const CAR_SVG = `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="11" fill="#1F2937" stroke="white" stroke-width="1.5"/><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5H6.5C5.84 5 5.29 5.42 5.08 6.01L3 12V20C3 20.55 3.45 21 4 21H5C5.55 21 6 20.55 6 20V19H18V20C18 20.55 18.45 21 19 21H20C20.55 21 21 20.55 21 20V12L18.92 6.01ZM6.5 16C5.67 16 5 15.33 5 14.5C5 13.67 5.67 13 6.5 13C7.33 13 8 13.67 8 14.5C8 15.33 7.33 16 6.5 16ZM17.5 16C16.67 16 16 15.33 16 14.5C16 13.67 16.67 13 17.5 13C18.33 13 19 13.67 19 14.5C19 15.33 18.33 16 17.5 16ZM5 11L6.5 6.5H17.5L19 11H5Z" fill="white"/></svg>`;
+    const PICKUP_SVG = `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13 15.87 2 12 2Z" fill="#10B981" stroke="white" stroke-width="1"/><text x="12" y="13" font-family="Arial" font-size="10" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle">P</text></svg>`;
+
+    useEffect(() => {
+        map.clearMarkers();
+
+        if (currentTrip?.pickup?.coordinates) {
+            map.addMarker({
+                id: 'pickup',
+                lat: currentTrip.pickup.coordinates.lat,
+                lng: currentTrip.pickup.coordinates.lng,
+                title: 'Pasajero',
+                svgBase64: svgToBase64(PICKUP_SVG),
+                width: 40, height: 40,
+            });
+        }
+    }, [currentTrip?.id, currentTrip?.pickup]);
+
+    // ─────────────────────────────────────────────
+    // Navigation event handlers
+    // ─────────────────────────────────────────────
+    const handleNavEvent = useCallback((event, data) => {
+        if (event === 'navigationFinished') {
+            setIsNavigating(false);
+        }
+    }, []);
+
+    const handleArrival = useCallback(async (waypoint) => {
+        if (currentTrip?.status === 'accepted') {
+            // Llegó al pasajero — marcar como in_progress automáticamente
+            await startTrip(currentTrip.id);
+        } else if (currentTrip?.status === 'in_progress') {
+            // Llegó al destino
+            await completeTrip(currentTrip.id);
+        }
+    }, [currentTrip, startTrip, completeTrip]);
+
+    const handleSpeedAlert = useCallback((currentSpeed, speedLimit, isOver) => {
+        setSpeedInfo({ current: Math.round(currentSpeed), limit: Math.round(speedLimit), isOver });
+    }, []);
+
+    const toggleAudio = useCallback(() => {
+        const newMuted = !audioMuted;
+        setAudioMuted(newMuted);
+        map.setAudioGuidance(newMuted);
+    }, [audioMuted, map]);
 
     const handleAcceptTrip = async (tripId) => {
         try {
@@ -155,105 +230,29 @@ const DriverHome = () => {
 
     const handleLocateMe = () => {
         getCurrentPosition();
-        setCenterTrigger(prev => prev + 1);
+        if (currentLocation) {
+            map.animateCamera({ lat: currentLocation.lat, lng: currentLocation.lng, zoom: 16 });
+        }
     };
 
     const toggleMapType = () => {
-        setMapType(prev => {
-            const newType = prev === 'roadmap' ? 'satellite' : 'roadmap';
-            localStorage.setItem('llevame_mapType', newType);
-            return newType;
-        });
+        const newType = mapType === 'normal' ? 'hybrid' : 'normal';
+        setMapType(newType);
+        map.setMapType(newType);
+        localStorage.setItem('llevame_mapType', newType);
     };
 
-    const handleZoomIn = () => {
-        if (mapRef.current) mapRef.current.zoomIn();
-    };
+    const handleZoomIn = () => map.animateCamera({ zoom: 17 });
+    const handleZoomOut = () => map.animateCamera({ zoom: 13 });
+    const handleCompass = () => setIsCompassActive(!isCompassActive);
 
-    const handleZoomOut = () => {
-        if (mapRef.current) mapRef.current.zoomOut();
-    };
-
-    const handleCompass = () => {
-        setIsCompassActive(!isCompassActive);
-    };
-
-    // Calculate distance in km (Haversine formula)
     const calculateDistance = (lat1, lon1, lat2, lon2) => {
         if (!lat1 || !lon1 || !lat2 || !lon2) return 0;
         const R = 6371;
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const d = R * c;
-        return d.toFixed(1);
-    };
-
-    // Prepare Custom Markers with minimalist flat design + Labels
-    const getMarkers = () => {
-        const markers = [];
-        // Safety check: Ensure Google Maps API is loaded before accessing .maps
-        if (!window.google || !window.google.maps) return markers;
-
-        if (!currentTrip) return markers;
-
-        // Pickup point (Minimalist Green Pin with 'A')
-        if (currentTrip.pickup?.coordinates) {
-            const GREEN_PIN_MINIMAL = `
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-                        <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.3"/>
-                    </filter>
-                    <g filter="url(#shadow)">
-                        <path d="M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13 15.87 2 12 2Z" fill="#10B981" stroke="white" stroke-width="1"/>
-                        <text x="12" y="13" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle">A</text>
-                    </g>
-                </svg>
-            `;
-
-            markers.push({
-                id: 'pickup',
-                position: currentTrip.pickup.coordinates,
-                title: 'Recogida Pasajero',
-                icon: {
-                    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(GREEN_PIN_MINIMAL),
-                    scaledSize: new window.google.maps.Size(40, 40),
-                    anchor: new window.google.maps.Point(20, 40)
-                }
-            });
-        }
-
-        // Dropoff point (Minimalist Red Pin with 'B')
-        if (currentTrip.dropoff?.coordinates) {
-            const RED_PIN_MINIMAL = `
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-                        <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.3"/>
-                    </filter>
-                    <g filter="url(#shadow)">
-                        <path d="M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13 15.87 2 12 2Z" fill="#EF4444" stroke="white" stroke-width="1"/>
-                        <text x="12" y="13" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle">B</text>
-                    </g>
-                </svg>
-            `;
-
-            markers.push({
-                id: 'dropoff',
-                position: currentTrip.dropoff.coordinates,
-                title: 'Destino',
-                icon: {
-                    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(RED_PIN_MINIMAL),
-                    scaledSize: new window.google.maps.Size(40, 40),
-                    anchor: new window.google.maps.Point(20, 40)
-                }
-            });
-        }
-
-        return markers;
+        const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+        return (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))).toFixed(1);
     };
 
     // --- RENDER HELPERS ---
@@ -288,7 +287,7 @@ const DriverHome = () => {
                 onClick={toggleMapType}
                 className="bg-white p-3 rounded-full shadow-lg text-gray-700 hover:bg-gray-50"
             >
-                {mapType === 'roadmap' ? <Layers size={24} /> : <MapIcon size={24} />}
+                {mapType === 'normal' ? <Layers size={24} /> : <MapIcon size={24} />}
             </button>
             <button
                 onClick={handleLocateMe}
@@ -303,19 +302,32 @@ const DriverHome = () => {
     if (currentTrip) {
         return (
             <div className="relative h-full w-full flex flex-col">
+                {/* Mapa nativo con navegación turn-by-turn activa */}
                 <div className="absolute inset-0 z-0">
-                    <Map
-                        key="active-trip-map"
-                        ref={mapRef}
-                        className="w-full h-full"
+                    <NativeMapView
                         mapType={mapType}
-                        centerOnLocationTrigger={centerTrigger}
-                        origin={currentLocation}
-                        destination={currentTrip.status === 'accepted' ? currentTrip.pickup.coordinates : currentTrip.dropoff.coordinates}
-                        showDirections={true}
-                        onDirectionsResult={handleDirectionsResult}
-                        markers={getMarkers()}
+                        onArrival={handleArrival}
+                        onNavigationEvent={handleNavEvent}
+                        onSpeedAlert={handleSpeedAlert}
                     />
+                </div>
+
+                {/* Badge de velocidad cuando supera el límite */}
+                {speedInfo.isOver && (
+                    <div className="absolute top-safe left-4 z-20 bg-red-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 animate-pulse">
+                        <span className="text-lg font-black">{speedInfo.current}</span>
+                        <span className="text-xs">/ {speedInfo.limit} km/h</span>
+                    </div>
+                )}
+
+                {/* Control de audio de navegación */}
+                <div className="absolute top-safe right-4 z-20 flex flex-col gap-2 mt-safe-top">
+                    <button
+                        onClick={toggleAudio}
+                        className="bg-white p-3 rounded-full shadow-lg"
+                    >
+                        {audioMuted ? <VolumeX size={20} className="text-red-500" /> : <Volume2 size={20} className="text-gray-700" />}
+                    </button>
                 </div>
 
                 {renderMapControls()}
@@ -453,12 +465,9 @@ const DriverHome = () => {
         <div className="relative h-full w-full flex flex-col overflow-hidden">
             {/* Map Background */}
             <div className="absolute inset-0 z-0">
-                <Map
-                    key="idle-map"
-                    ref={mapRef}
-                    className="w-full h-full"
+                <NativeMapView
                     mapType={mapType}
-                    centerOnLocationTrigger={centerTrigger}
+                    className="w-full h-full"
                 />
             </div>
 
