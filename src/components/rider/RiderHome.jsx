@@ -693,6 +693,7 @@ const RiderHome = () => {
                                             placeholder="Ingresa tu destino"
                                             initialValue={destination}
                                             onPlaceSelect={handlePlaceSelect}
+                                            locationBias={currentLocation}
                                         />
 
                                         <button

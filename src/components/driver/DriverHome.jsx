@@ -6,8 +6,6 @@ import { useTrip } from '../../context/TripContext';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation } from '../../context/LocationContext';
 import { useNativeMap } from '../../hooks/useNativeMap';
-import { snapSinglePoint } from '../../services/roadsService';
-
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 
