@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
-import android.graphics.Point;
 import android.util.Base64;
 import android.util.DisplayMetrics;
 import android.view.View;
@@ -18,15 +17,19 @@ import com.getcapacitor.Bridge;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PluginCall;
 
+import android.location.Location;
+
 import com.google.android.libraries.navigation.ArrivalEvent;
 import com.google.android.libraries.navigation.ListenableResultFuture;
 import com.google.android.libraries.navigation.NavigationApi;
 import com.google.android.libraries.navigation.Navigator;
 import com.google.android.libraries.navigation.Navigator.ArrivalListener;
 import com.google.android.libraries.navigation.Navigator.RouteChangedListener;
+import com.google.android.libraries.navigation.RoadSnappedLocationProvider;
 import com.google.android.libraries.navigation.RoutingOptions;
 import com.google.android.libraries.navigation.SpeedAlertOptions;
 import com.google.android.libraries.navigation.SpeedAlertSeverity;
+import com.google.android.libraries.navigation.SpeedingUpdate;
 import com.google.android.libraries.navigation.SupportNavigationFragment;
 import com.google.android.libraries.navigation.Waypoint;
 
@@ -71,6 +74,10 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
     // Listeners activos — guardados para poder removerlos al destruir
     private ArrivalListener arrivalListener;
     private RouteChangedListener routeChangedListener;
+    private RoadSnappedLocationProvider locationProvider;
+    private RoadSnappedLocationProvider.LocationListener locationListener;
+    private float lastSpeed = 0f;
+    private float lastBearing = 0f;
 
     public NavigationPluginImpl(Activity activity, Bridge bridge, NavigationPlugin plugin) {
         this.activity = activity;
@@ -94,6 +101,7 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
 
             // 2. Crear FrameLayout contenedor del mapa
             mapContainer = new FrameLayout(activity);
+            mapContainer.setId(View.generateViewId());
             FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height);
             params.leftMargin = x;
             params.topMargin = y;
@@ -192,10 +200,39 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
             .build();
         navigator.setSpeedAlertOptions(speedAlertOptions);
 
-        navigator.addSpeedingListener((isSpeeding, percentageAboveLimit, severity) -> {
-            // Obtener velocidad actual desde el listener de ubicación del SDK
-            plugin.emitSpeedAlert(0f, 0f);
+        navigator.addSpeedingListener(new Navigator.SpeedingListener() {
+            @Override
+            public void onSpeedingUpdated(@NonNull SpeedingUpdate update) {
+                float pct = update.getPercentageAboveLimit();
+                // Estimar velocidad límite a partir del porcentaje y velocidad actual
+                float speedLimit = (pct > 0) ? lastSpeed / (1f + pct / 100f) : 0f;
+                plugin.emitSpeedAlert(lastSpeed, speedLimit);
+            }
         });
+
+        // Proveedor de ubicación sincronizado con la carretera
+        locationProvider = NavigationApi.getRoadSnappedLocationProvider(activity);
+        if (locationProvider != null) {
+            locationListener = new RoadSnappedLocationProvider.LocationListener() {
+                @Override
+                public void onLocationChanged(@NonNull Location location) {
+                    lastSpeed = location.getSpeed() * 3.6f; // m/s → km/h
+                    lastBearing = location.getBearing();
+                    plugin.emitLocationUpdate(
+                        location.getLatitude(),
+                        location.getLongitude(),
+                        lastSpeed,
+                        lastBearing
+                    );
+                }
+
+                @Override
+                public void onRawLocationUpdate(@NonNull Location location) {
+                    // No usado — preferimos la ubicación ajustada a la carretera
+                }
+            };
+            locationProvider.addLocationListener(locationListener);
+        }
     }
 
     // ─────────────────────────────────────────────
@@ -420,7 +457,14 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
 
     public void destroyMap(PluginCall call) {
         activity.runOnUiThread(() -> {
-            // Remover listeners
+            // Remover listener de ubicación
+            if (locationProvider != null && locationListener != null) {
+                locationProvider.removeLocationListener(locationListener);
+                locationListener = null;
+                locationProvider = null;
+            }
+
+            // Remover listeners de navegación
             if (navigator != null) {
                 if (arrivalListener != null) navigator.removeArrivalListener(arrivalListener);
                 if (routeChangedListener != null) navigator.removeRouteChangedListener(routeChangedListener);
