@@ -26,8 +26,8 @@ const Layout = () => {
     return (
         <div className="h-screen bg-slate-50 flex flex-col">
             {/* Main Content Area */}
-            <main className="flex-1 relative overflow-hidden">
-                <div className="h-full w-full">
+            <main className="flex-1 relative overflow-hidden" style={{ contain: 'strict' }}>
+                <div key={location.key} className="h-full w-full">
                     <Outlet />
                 </div>
             </main>

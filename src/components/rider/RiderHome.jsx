@@ -11,10 +11,21 @@ import { useLocation } from '../../context/LocationContext';
 import PaymentMethodSelector from '../shared/PaymentMethodSelector';
 
 
+let _riderInstanceCount = 0;
+
 const RiderHome = () => {
     const { currentUser } = useAuth(); // Needed for Chat
     const [showRequestModal, setShowRequestModal] = useState(false);
     const mapRef = useRef(null);
+
+    useEffect(() => {
+        _riderInstanceCount++;
+        console.warn(`[RiderHome] MOUNTED. Total instances: ${_riderInstanceCount}`);
+        return () => {
+            _riderInstanceCount--;
+            console.warn(`[RiderHome] UNMOUNTED. Remaining: ${_riderInstanceCount}`);
+        };
+    }, []);
 
     // Trip Request State
     const [destination, setDestination] = useState('');
@@ -534,7 +545,7 @@ const RiderHome = () => {
 
     // 2. Main View
     return (
-        <div className="relative h-full w-full flex flex-col">
+        <div className="relative h-full w-full flex flex-col bg-slate-50">
             {/* Map Background */}
             <div className="absolute inset-0 z-0">
                 <Map
