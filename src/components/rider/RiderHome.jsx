@@ -12,6 +12,17 @@ import { useAuth } from '../../context/AuthContext';
 import { useLocation } from '../../context/LocationContext';
 import PaymentMethodSelector from '../shared/PaymentMethodSelector';
 
+// Tarifa escalonada en USD — función pura compartida entre render y handleRequestRide
+function calculateTieredFare(km, vehicleType) {
+    let price = 0.40;
+    price += Math.min(km, 5) * 0.15;
+    if (km > 5)  price += Math.min(km - 5, 15) * 0.55;
+    if (km > 20) price += (km - 20) * 1.05;
+    if (vehicleType === 'car')     price *= 1.4;
+    if (vehicleType === 'premium') price *= 1.9;
+    return parseFloat(price.toFixed(2));
+}
+
 const RiderHome = () => {
     const { currentUser } = useAuth();
     const map = useNativeMap();
@@ -86,22 +97,31 @@ const RiderHome = () => {
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     };
 
-    // Listen for real nearby drivers from 'online_drivers'
-    useEffect(() => {
-        if (!currentLocation || !db) return;
+    // Ref para acceder a la ubicación actual dentro del callback de Firestore
+    // sin recrear la suscripción en cada actualización de GPS.
+    const currentLocationRef = useRef(currentLocation);
+    useEffect(() => { currentLocationRef.current = currentLocation; }, [currentLocation]);
 
-        // Query all online drivers (Optimization: In production use GeoHash/GeoFire)
+    // Suscripción a conductores cercanos — se crea UNA sola vez por sesión.
+    // El filtro por distancia usa currentLocationRef para leer la posición más reciente
+    // sin que el efecto deba re-ejecutarse en cada ping de GPS.
+    useEffect(() => {
+        if (!db) return;
+
         const q = query(collection(db, 'online_drivers'), where('status', '==', 'online'));
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
+            const loc = currentLocationRef.current;
+            if (!loc) { setNearbyDrivers([]); return; }
+
             const drivers = [];
             const now = new Date();
-            const STALE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
+            const STALE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutos
 
             snapshot.forEach((doc) => {
                 const data = doc.data();
 
-                // Filter stales
+                // Descartar conductores sin actualización reciente
                 if (data.updatedAt) {
                     const lastUpdate = data.updatedAt.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt);
                     if (now - lastUpdate > STALE_THRESHOLD_MS) return;
@@ -109,19 +129,12 @@ const RiderHome = () => {
 
                 if (data.location) {
                     const distance = getDistanceFromLatLonInKm(
-                        currentLocation.lat,
-                        currentLocation.lng,
-                        data.location.lat,
-                        data.location.lng
+                        loc.lat, loc.lng,
+                        data.location.lat, data.location.lng
                     );
 
-                    // Filter by radius (e.g., 700 meters = 0.7 km)
                     if (distance <= 0.7) {
-                        drivers.push({
-                            id: doc.id,
-                            position: data.location,
-                            ...data
-                        });
+                        drivers.push({ id: doc.id, position: data.location, ...data });
                     }
                 }
             });
@@ -129,7 +142,8 @@ const RiderHome = () => {
         });
 
         return () => unsubscribe();
-    }, [currentLocation, db]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [db]); // Solo depende de db — la ubicación se lee vía ref
 
     // Initial Center on Location
     useEffect(() => {
@@ -226,35 +240,15 @@ const RiderHome = () => {
     const handleRequestRide = async () => {
         if (!destination || !currentLocation || !destinationLocation) return;
 
-        // Pricing Logic (Tiered)
-        const calculateTieredFare = (km, type) => {
-            let price = 0.40;
-            const tier1Km = Math.min(km, 5);
-            price += tier1Km * 0.15;
-            if (km > 5) {
-                const tier2Km = Math.min(km - 5, 15);
-                price += tier2Km * 0.55;
-            }
-            if (km > 20) {
-                const tier3Km = km - 20;
-                price += tier3Km * 1.05;
-            }
-            if (type === 'car') price = price * 1.4;
-            if (type === 'premium') price = price * 1.9;
-            return price;
-        };
-
         const distKm = estimatedDetails ? estimatedDetails.distance.value / 1000 : 0;
         let rawPrice = calculateTieredFare(distKm, vehicleType);
 
-        // Minimum Fares
-        if (vehicleType === 'moto' && rawPrice < 1.00) rawPrice = 1.00;
-        if (vehicleType === 'car' && rawPrice < 1.50) rawPrice = 1.50;
+        // Mínimos por tipo de vehículo
+        if (vehicleType === 'moto'    && rawPrice < 1.00) rawPrice = 1.00;
+        if (vehicleType === 'car'     && rawPrice < 1.50) rawPrice = 1.50;
         if (vehicleType === 'premium' && rawPrice < 2.50) rawPrice = 2.50;
 
-        const calculatedFare = estimatedDetails
-            ? rawPrice.toFixed(2)
-            : rawPrice.toFixed(2);
+        const calculatedFare = rawPrice.toFixed(2);
 
         // Determine final fare (negotiated or calculated)
         const finalFare = isNegotiating && customFare ? parseFloat(customFare) : Number(calculatedFare);
@@ -844,55 +838,16 @@ const RiderHome = () => {
 
                                 {/* Estimated Info & Negotiation */}
                                 <div className="p-5 bg-white rounded-2xl border border-gray-200 shadow-sm relative overflow-hidden">
-                                    {/* Calculation Logic for Display */}
                                     {(() => {
-                                        // Advanced Tiered Pricing Function
-                                        const calculateTieredFare = (km, type) => {
-                                            // Base Baseline (Moto Reference)
-                                            // 0-5km: Base 0.40 + 0.15/km (4km = 1.00)
-                                            // 5-20km: Previous + 0.55/km (17km = ~8.00)
-                                            // 20km+: Previous + 1.00/km (40km = ~30.00)
-
-                                            let price = 0.40; // Base arranque
-
-                                            // Tier 1: First 5km
-                                            const tier1Km = Math.min(km, 5);
-                                            price += tier1Km * 0.15;
-
-                                            // Tier 2: Next 15km (from 5 to 20)
-                                            if (km > 5) {
-                                                const tier2Km = Math.min(km - 5, 15);
-                                                price += tier2Km * 0.55;
-                                            }
-
-                                            // Tier 3: Beyond 20km
-                                            if (km > 20) {
-                                                const tier3Km = km - 20;
-                                                price += tier3Km * 1.05;
-                                            }
-
-                                            // Vehicle Multipliers
-                                            if (type === 'car') price = price * 1.4; // %40 more expensive
-                                            if (type === 'premium') price = price * 1.9; // %90 more expensive
-
-                                            // Rounding
-                                            return parseFloat(price.toFixed(2));
-                                        };
-
                                         const distKm = estimatedDetails ? estimatedDetails.distance.value / 1000 : 0;
-                                        const rawPrice = calculateTieredFare(distKm, vehicleType);
+                                        let displayPrice = calculateTieredFare(distKm, vehicleType);
+                                        if (vehicleType === 'moto'    && displayPrice < 1.00) displayPrice = 1.00;
+                                        if (vehicleType === 'car'     && displayPrice < 1.50) displayPrice = 1.50;
+                                        if (vehicleType === 'premium' && displayPrice < 2.50) displayPrice = 2.50;
 
-                                        // Enforce Minimums (Optional override if formula gives less)
-                                        let finalPrice = rawPrice;
-                                        if (vehicleType === 'moto' && finalPrice < 1.00) finalPrice = 1.00;
-                                        if (vehicleType === 'car' && finalPrice < 1.50) finalPrice = 1.50;
-
-                                        // Export for display
-                                        const calculatedPrice = estimatedDetails ? finalPrice.toFixed(2) : "0.00";
-
-                                        // BS Conversion
+                                        const calculatedPrice = estimatedDetails ? displayPrice.toFixed(2) : '0.00';
                                         const activePrice = isNegotiating && customFare ? customFare : calculatedPrice;
-                                        const conversion = bcvRate ? (parseFloat(activePrice) * bcvRate).toFixed(2) : "---";
+                                        const conversion = bcvRate ? (parseFloat(activePrice) * bcvRate).toFixed(2) : '---';
 
                                         return (
                                             <>
