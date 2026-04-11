@@ -580,13 +580,23 @@ const DriverHome = () => {
                                                             {trip.riderName || 'Pasajero'}
                                                         </span>
 
-                                                        {tripDistanceDisplay && (
-                                                            <div className="flex items-center gap-1 mt-1">
-                                                                <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                                                        <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                                            {trip.serviceType === 'package' && (
+                                                                <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+                                                                    📦 Paquete
+                                                                </span>
+                                                            )}
+                                                            {trip.vehicleType && (
+                                                                <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
+                                                                    {trip.vehicleType === 'moto' ? '🏍 Moto' : trip.vehicleType === 'car' ? '🚗 Carro' : trip.vehicleType}
+                                                                </span>
+                                                            )}
+                                                            {tripDistanceDisplay && (
+                                                                <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full">
                                                                     {tripDistanceDisplay}
                                                                 </span>
-                                                            </div>
-                                                        )}
+                                                            )}
+                                                        </div>
                                                     </div>
                                                     <div className="text-right">
                                                         <span className="block font-black text-2xl text-green-600 tracking-tight">${trip.fare}</span>
@@ -599,6 +609,12 @@ const DriverHome = () => {
                                                 <div className="text-sm text-gray-600 mb-3 block space-y-1">
                                                     <div className="flex items-center gap-2"><div className="w-2 h-2 bg-green-500 rounded-full"></div> {trip.pickup?.address}</div>
                                                     <div className="flex items-center gap-2"><div className="w-2 h-2 bg-red-500 rounded-full"></div> {trip.dropoff?.address}</div>
+                                                    {trip.packageDescription && (
+                                                        <div className="flex items-start gap-2 mt-2 p-2 bg-amber-50 rounded-lg text-xs text-amber-800">
+                                                            <span className="shrink-0">📦</span>
+                                                            <span>{trip.packageDescription}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <button
                                                     onClick={() => handleAcceptTrip(trip.id)}

@@ -385,6 +385,11 @@ export const TripProvider = ({ children }) => {
                 durationValue: meta.durationValue || 0,
                 durationText: meta.durationText || '',
                 paymentMethod: meta.paymentMethod || { type: 'cash' },
+                vehicleType: meta.vehicleType || 'moto',
+                serviceType: meta.serviceType || 'ride',
+                ...(meta.packageDescription && { packageDescription: meta.packageDescription }),
+                isNegotiated: meta.isNegotiated || false,
+                originalFare: meta.originalFare || fare,
                 createdAt: serverTimestamp(),
                 location: currentLocation // Current rider location
             });
