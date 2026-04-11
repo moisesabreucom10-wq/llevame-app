@@ -60,8 +60,6 @@ const TripsHistory = () => {
     useEffect(() => {
         if (!currentUser || !userProfile) return;
 
-        console.log("Loading history for:", userProfile.userType, currentUser.uid);
-
         const tripsRef = collection(db, 'llevame_trips');
         const roleField = userProfile.userType === 'driver' ? 'driverId' : 'riderId';
 

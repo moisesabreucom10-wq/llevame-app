@@ -32,6 +32,9 @@ const DriverHome = () => {
     const [speedInfo, setSpeedInfo] = useState({ current: 0, limit: 0, isOver: false });
     const [isRerouting, setIsRerouting] = useState(false);
 
+    // Confirm modal state (replaces window.confirm for mobile-friendly dialogs)
+    const [confirmModal, setConfirmModal] = useState({ visible: false, title: '', message: '', onConfirm: null, danger: false });
+
     // Fetch BCV Rate
     useEffect(() => {
         const fetchBCV = async () => {
@@ -218,18 +221,23 @@ const DriverHome = () => {
             return;
         }
 
-        // 2. Payment Confirmation
-        const confirmMsg = currentTrip.paymentMethod?.type === 'cash'
-            ? `Cobrar $${currentTrip.fare} en EFECTIVO al pasajero.`
-            : `Verificar pago de $${currentTrip.fare} por ${currentTrip.paymentMethod?.type === 'pago_movil' ? 'PAGO MÓVIL' : 'TARJETA'}.`;
+        // 2. Payment Confirmation via custom modal
+        const paymentLabel = currentTrip.paymentMethod?.type === 'cash'
+            ? `Cobrar $${currentTrip.fare} en EFECTIVO`
+            : `Verificar pago de $${currentTrip.fare} por ${currentTrip.paymentMethod?.type === 'pago_movil' ? 'Pago Móvil' : 'Tarjeta'}`;
 
-        if (window.confirm(`${confirmMsg}\n\n¿El pago se ha realizado correctamente?`)) {
-            try {
-                await completeTrip(currentTrip.id, parseFloat(currentTrip.fare));
-            } catch (error) {
-                window.showInAppNotification?.('trip_cancelled', 'Error', 'No se pudo completar el viaje');
-            }
-        }
+        setConfirmModal({
+            visible: true,
+            title: '¿Confirmar cobro?',
+            message: `${paymentLabel} al pasajero.\n¿El pago se realizó correctamente?`,
+            onConfirm: async () => {
+                try {
+                    await completeTrip(currentTrip.id, parseFloat(currentTrip.fare));
+                } catch (error) {
+                    window.showInAppNotification?.('trip_cancelled', 'Error', 'No se pudo completar el viaje');
+                }
+            },
+        });
     };
 
     const handleLocateMe = () => {
@@ -442,11 +450,13 @@ const DriverHome = () => {
                                         </button>
 
                                         <button
-                                            onClick={() => {
-                                                if (window.confirm("⚠️ ¿Estás seguro de cancelar este viaje en curso? Úsalo solo en emergencias.")) {
-                                                    completeTrip(currentTrip.id, 0);
-                                                }
-                                            }}
+                                            onClick={() => setConfirmModal({
+                                                visible: true,
+                                                title: '¿Cancelar viaje?',
+                                                message: 'Solo úsalo en emergencias. El viaje será cancelado sin cobro.',
+                                                onConfirm: () => completeTrip(currentTrip.id, 0),
+                                                danger: true,
+                                            })}
                                             className="mt-4 w-full py-3 text-red-500 font-medium text-sm flex items-center justify-center gap-1 opacity-70 hover:opacity-100"
                                         >
                                             Cancelar Viaje
@@ -466,6 +476,33 @@ const DriverHome = () => {
                         otherUserDecoratedName="Pasajero"
                         onClose={() => setIsChatOpen(false)}
                     />
+                )}
+
+                {/* Confirm Modal — reemplaza window.confirm() con diálogo nativo mobile */}
+                {confirmModal.visible && (
+                    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 px-4 pb-8">
+                        <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl animate-slide-up">
+                            <h3 className="text-lg font-bold text-gray-900 mb-2">{confirmModal.title}</h3>
+                            <p className="text-gray-600 text-sm whitespace-pre-line mb-6">{confirmModal.message}</p>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setConfirmModal({ visible: false, title: '', message: '', onConfirm: null, danger: false })}
+                                    className="flex-1 py-3 bg-gray-100 text-gray-700 font-semibold rounded-2xl active:scale-95 transition-transform"
+                                >
+                                    No
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setConfirmModal({ visible: false, title: '', message: '', onConfirm: null, danger: false });
+                                        confirmModal.onConfirm?.();
+                                    }}
+                                    className={`flex-1 py-3 font-semibold rounded-2xl text-white active:scale-95 transition-transform ${confirmModal.danger ? 'bg-red-600' : 'bg-green-600'}`}
+                                >
+                                    Sí, confirmar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 )}
             </div>
         );

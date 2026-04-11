@@ -331,7 +331,8 @@ const RiderHome = () => {
 
     const svgToBase64 = (svg) => btoa(unescape(encodeURIComponent(svg)));
 
-    // Sincronizar marcadores en el mapa nativo cuando cambia el estado
+    // Marcadores estáticos — solo se recalculan al cambiar el viaje (ID) o los conductores cercanos.
+    // NO incluye el marcador del conductor para evitar clearMarkers() en cada ping de ubicación.
     useEffect(() => {
         map.clearMarkers();
 
@@ -350,7 +351,7 @@ const RiderHome = () => {
             return;
         }
 
-        // Viaje activo: mostrar pickup, dropoff y conductor
+        // Viaje activo: pickup y dropoff (conductor se maneja en efecto separado)
         if (currentTrip.pickup?.coordinates) {
             map.addMarker({
                 id: 'pickup',
@@ -371,7 +372,13 @@ const RiderHome = () => {
                 width: 40, height: 40,
             });
         }
-        if (currentTrip.driverLocation) {
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentTrip?.id, nearbyDrivers]);
+
+    // Marcador del conductor — actualización en tiempo real sin limpiar el resto de marcadores.
+    // addMarker con el mismo id reemplaza el marcador existente en la capa nativa.
+    useEffect(() => {
+        if (currentTrip?.driverLocation) {
             map.addMarker({
                 id: 'driver',
                 lat: currentTrip.driverLocation.lat,
@@ -380,8 +387,12 @@ const RiderHome = () => {
                 svgBase64: svgToBase64(CAR_SVG),
                 width: 40, height: 40,
             });
+        } else if (currentTrip) {
+            // Conductor sin ubicación aún — eliminar marcador previo si existía
+            map.removeMarker('driver');
         }
-    }, [currentTrip, nearbyDrivers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentTrip?.driverLocation]);
 
     // --- RENDER HELPERS ---
 

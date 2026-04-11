@@ -18,16 +18,12 @@ const LoginPage = () => {
 
         // Connectivity Test
         try {
-            console.log("Testing connectivity...");
             await fetch('https://www.google.com', { mode: 'no-cors' });
-            console.log("Connectivity OK");
         } catch (netErr) {
-            console.error("Connectivity Check Failed:", netErr);
+            console.error("Connectivity check failed:", netErr);
             alert("TU DISPOSITIVO NO TIENE INTERNET (No conecta a Google)");
             return;
         }
-
-        console.log("EMAIL FORM SUBMITTED");
         try {
             if (isLogin) {
                 await loginEmail(email, password);

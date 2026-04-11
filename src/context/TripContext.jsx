@@ -52,18 +52,13 @@ export const TripProvider = ({ children }) => {
         }
 
         const activateBackgroundTracking = async () => {
-            console.log('[TripContext] 🔔 Activando background tracking...');
-
             // Solicitar permiso de notificaciones (requerido en Android 13+)
             try {
                 const { LocalNotifications } = await import('@capacitor/local-notifications');
                 const permStatus = await LocalNotifications.checkPermissions();
-                console.log('[TripContext] 📋 Estado permisos notificaciones:', permStatus.display);
 
                 if (permStatus.display !== 'granted') {
-                    console.log('[TripContext] 🔔 Solicitando permisos de notificación...');
-                    const result = await LocalNotifications.requestPermissions();
-                    console.log('[TripContext] 📋 Resultado permisos:', result.display);
+                    await LocalNotifications.requestPermissions();
                 }
             } catch (e) {
                 console.warn('[TripContext] ⚠️ No se pudo verificar permisos de notificación:', e);
@@ -86,14 +81,9 @@ export const TripProvider = ({ children }) => {
                 const { default: backgroundLocationService } = await import('../services/BackgroundLocationService');
 
                 await backgroundLocationService.startBackgroundTracking(
-                    (newLocation) => {
-                        // Este callback actualiza React state (cuando la app está en primer plano)
-                        console.log('[TripContext] 📍 Location callback recibido');
-                    },
-                    driverInfo // Pasar toda la info del conductor
+                    () => { /* foreground location callback — handled by LocationContext */ },
+                    driverInfo
                 );
-
-                console.log('[TripContext] ✅ Background tracking activado con Firebase directo');
             } catch (err) {
                 console.warn('[TripContext] ⚠️ Background tracking no disponible:', err);
                 // Fallback: intentar con el método del contexto
@@ -109,11 +99,9 @@ export const TripProvider = ({ children }) => {
             activateBackgroundTracking();
         } else {
             // Conductor offline -> desactivar background tracking
-            console.log('[TripContext] 🔕 Desactivando background tracking...');
             import('../services/BackgroundLocationService').then(({ default: service }) => {
                 service.stopBackgroundTracking()
-                    .then(() => console.log('[TripContext] ✅ Background tracking desactivado'))
-                    .catch(err => console.warn('[TripContext] ⚠️ Error desactivando:', err));
+                    .catch(err => console.warn('[TripContext] ⚠️ Error desactivando background tracking:', err));
             });
         }
 
@@ -136,23 +124,15 @@ export const TripProvider = ({ children }) => {
 
     // Listen for active trip for the current user
     useEffect(() => {
-        if (!currentUser) {
-            console.log('[TripContext] No currentUser, skipping trip listener');
-            return;
-        }
+        if (!currentUser) return;
 
         // Wait for profile to load userType
-        if (!userProfile) {
-            console.log('[TripContext] No userProfile yet, waiting...');
-            return;
-        }
+        if (!userProfile) return;
 
         if (!db) {
             console.error("Firestore 'db' not initialized in TripContext");
             return;
         }
-
-        console.log('[TripContext] Setting up listener for:', currentUser.uid, 'Type:', userProfile.userType);
 
         let q;
         if (userProfile.userType === 'rider') {
@@ -178,14 +158,11 @@ export const TripProvider = ({ children }) => {
         if (!q) return;
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            console.log('[TripContext] Snapshot update. Docs found:', snapshot.size);
             if (!snapshot.empty) {
                 const tripDoc = snapshot.docs[0];
                 const tripData = { id: tripDoc.id, ...tripDoc.data() };
-                console.log('[TripContext] Setting currentTrip:', tripData.status, tripData.id);
                 setCurrentTrip(tripData);
             } else {
-                console.log('[TripContext] No active trip found.');
                 setCurrentTrip(null);
             }
         }, (err) => {
@@ -233,50 +210,23 @@ export const TripProvider = ({ children }) => {
 
     // Driver: Broadcast location to 'online_drivers' logic
     useEffect(() => {
-        // Debug info - SIEMPRE mostrar para depuración
-        console.log('[TripContext] 🔍 Broadcast Check:', {
-            hasUser: !!currentUser,
-            uid: currentUser?.uid,
-            userType: userProfile?.userType,
-            isDriverOnline: isDriverOnline,
-            hasLocation: !!currentLocation,
-            location: currentLocation
-        });
-
-        if (!currentUser) {
-            console.log('[TripContext] ❌ No hay usuario logueado');
-            return;
-        }
-
-        if (userProfile?.userType !== 'driver') {
-            console.log('[TripContext] ℹ️ Usuario no es conductor, tipo:', userProfile?.userType);
-            return;
-        }
-
-        if (!db) {
-            console.log('[TripContext] ❌ Firebase db no disponible');
-            return;
-        }
+        if (!currentUser) return;
+        if (userProfile?.userType !== 'driver') return;
+        if (!db) return;
 
         const onlineRef = doc(db, 'online_drivers', currentUser.uid);
 
         // If OFFLINE, update status to 'offline' and stop
         if (!isDriverOnline) {
-            console.log('[TripContext] 🔴 Conductor OFFLINE, actualizando estado...');
             setDoc(onlineRef, { status: 'offline', updatedAt: serverTimestamp() }, { merge: true })
-                .then(() => console.log('[TripContext] ✅ Estado offline guardado'))
-                .catch(e => console.error("[TripContext] ❌ Error setting offline:", e));
+                .catch(e => console.error("[TripContext] Error setting offline:", e));
             return;
         }
 
-        if (!currentLocation) {
-            console.log('[TripContext] ⏳ Online pero sin ubicación aún, esperando...');
-            return;
-        }
+        if (!currentLocation) return;
 
         // Determine status (online/in_trip)
         const driverStatus = currentTrip ? 'in_trip' : 'online';
-        console.log('[TripContext] 🟢 Conductor ONLINE, status:', driverStatus);
 
         const updateLocation = async () => {
             try {
@@ -292,14 +242,7 @@ export const TripProvider = ({ children }) => {
                     updatedAt: serverTimestamp()
                 };
 
-                console.log('[TripContext] 📤 Guardando ubicación:', {
-                    name: dataToSave.name,
-                    location: dataToSave.location,
-                    status: dataToSave.status
-                });
-
                 await setDoc(onlineRef, dataToSave, { merge: true });
-                console.log('[TripContext] ✅ Ubicación guardada exitosamente');
             } catch (err) {
                 console.error("[TripContext] ❌ Error broadcasting location:", err);
             }
@@ -349,13 +292,11 @@ export const TripProvider = ({ children }) => {
                     // Si está a menos de 200 metros y no se ha notificado antes
                     if (distance < 200 && !currentTrip.driverNearby) {
                         updateData.driverNearby = true;
-                        console.log('[TripContext] 📍 ¡Conductor cerca del pasajero!', Math.round(distance), 'm');
                     }
 
                     // Si está a menos de 30 metros, marcar como llegado
                     if (distance < 30 && !currentTrip.driverArrived) {
                         updateData.driverArrived = true;
-                        console.log('[TripContext] 🚗 ¡Conductor llegó!');
                     }
                 }
 
@@ -464,8 +405,6 @@ export const TripProvider = ({ children }) => {
             // 2. Update Daily Stats for Driver
             const validFare = parseFloat(fareAmount);
             const finalAmount = isNaN(validFare) ? 0 : validFare;
-
-            console.log('[TripContext] Completing trip with fare:', finalAmount);
 
             if (finalAmount > 0) {
                 // Use Local Date to avoid UTC day shift checking
