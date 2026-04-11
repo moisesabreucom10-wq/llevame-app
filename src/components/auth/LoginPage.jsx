@@ -10,6 +10,7 @@ const LoginPage = () => {
     const [error, setError] = useState('');
     const [showReset, setShowReset] = useState(false);
     const [resetEmail, setResetEmail] = useState('');
+    const [resetSent, setResetSent] = useState(false);
     const { loginWithGoogle, loginEmail, signupEmail, resetPassword } = useAuth();
     const navigate = useNavigate();
 
@@ -21,7 +22,7 @@ const LoginPage = () => {
             await fetch('https://www.google.com', { mode: 'no-cors' });
         } catch (netErr) {
             console.error("Connectivity check failed:", netErr);
-            alert("TU DISPOSITIVO NO TIENE INTERNET (No conecta a Google)");
+            setError('Sin conexión a internet. Verifica tu red e intenta de nuevo.');
             return;
         }
         try {
@@ -43,9 +44,7 @@ const LoginPage = () => {
             navigate('/'); // Force navigation after native login success
         } catch (err) {
             console.error("Google login error:", err);
-            // Show detailed error to user for debugging
-            alert(`Error de Login: ${err.message} (${err.code})`);
-            setError(`Error: ${err.message}`);
+            setError(`Error al iniciar con Google: ${err.message}`);
         }
     };
 
@@ -54,12 +53,12 @@ const LoginPage = () => {
         if (!resetEmail) return;
         try {
             await resetPassword(resetEmail);
-            alert('Enlace enviado. Revisa tu correo electrónico para restablecer tu contraseña.');
-            setShowReset(false);
+            setResetSent(true);
             setResetEmail('');
         } catch (err) {
             console.error(err);
-            alert('Error: ' + err.message);
+            setError('Error al enviar enlace: ' + err.message);
+            setShowReset(false);
         }
     };
 
@@ -196,36 +195,52 @@ const LoginPage = () => {
                             </p>
                         </div>
 
-                        <form onSubmit={handlePasswordReset} className="relative z-10 space-y-4">
-                            <div className="relative">
-                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                                <input
-                                    type="email"
-                                    placeholder="tucorreo@ejemplo.com"
-                                    className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-2xl focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all text-gray-800 placeholder-gray-400 shadow-sm"
-                                    value={resetEmail}
-                                    onChange={e => setResetEmail(e.target.value)}
-                                    autoFocus
-                                    required
-                                />
+                        {resetSent ? (
+                            <div className="relative z-10 text-center">
+                                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <Mail size={28} className="text-green-600" />
+                                </div>
+                                <p className="text-gray-700 font-semibold mb-1">¡Enlace enviado!</p>
+                                <p className="text-gray-500 text-sm mb-6">Revisa tu correo electrónico para restablecer tu contraseña.</p>
+                                <button
+                                    onClick={() => { setShowReset(false); setResetSent(false); }}
+                                    className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl"
+                                >
+                                    Listo
+                                </button>
                             </div>
+                        ) : (
+                            <form onSubmit={handlePasswordReset} className="relative z-10 space-y-4">
+                                <div className="relative">
+                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                                    <input
+                                        type="email"
+                                        placeholder="tucorreo@ejemplo.com"
+                                        className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-2xl focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all text-gray-800 placeholder-gray-400 shadow-sm"
+                                        value={resetEmail}
+                                        onChange={e => setResetEmail(e.target.value)}
+                                        autoFocus
+                                        required
+                                    />
+                                </div>
 
-                            <div className="flex gap-3 pt-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowReset(false)}
-                                    className="flex-1 py-3.5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-all"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="flex-1 py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all"
-                                >
-                                    Enviar Link
-                                </button>
-                            </div>
-                        </form>
+                                <div className="flex gap-3 pt-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowReset(false)}
+                                        className="flex-1 py-3.5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-all"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="flex-1 py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                                    >
+                                        Enviar Link
+                                    </button>
+                                </div>
+                            </form>
+                        )}
                     </div>
                 </div>
             )}

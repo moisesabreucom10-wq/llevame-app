@@ -74,10 +74,10 @@ const Profile = () => {
             });
             setFeedbackText('');
             setShowFeedback(false);
-            alert("¡Gracias! Tu sugerencia ha sido enviada.");
+            window.showInAppNotification?.('default', '¡Gracias!', 'Tu sugerencia ha sido enviada.');
         } catch (error) {
             console.error("Error sending feedback:", error);
-            alert("Error al enviar sugerencia.");
+            window.showInAppNotification?.('trip_cancelled', 'Error', 'No se pudo enviar la sugerencia.');
         } finally {
             setUploading(false);
         }
@@ -129,11 +129,11 @@ const Profile = () => {
                 setLocalPhotoUrl(downloadURL);
                 updateUserProfile({ photoURL: downloadURL });
 
-                alert('¡Foto actualizada con éxito!');
+                window.showInAppNotification?.('default', 'Foto actualizada', '¡Tu foto de perfil fue actualizada con éxito!');
             }
         } catch (error) {
             console.error("Upload error:", error);
-            alert('Error al actualizar foto: ' + (error.message || error));
+            window.showInAppNotification?.('trip_cancelled', 'Error', 'No se pudo actualizar la foto: ' + (error.message || error));
             setLocalPhotoUrl(null);
         } finally {
             setUploading(false);
@@ -181,48 +181,52 @@ const Profile = () => {
             }, { merge: true });
             updateUserProfile({ name: tempName });
             setIsEditingName(false);
-            alert('Nombre actualizado.');
+            window.showInAppNotification?.('default', 'Nombre actualizado', '');
         } catch (error) {
             console.error("Error updating name:", error);
-            alert("Error al actualizar nombre.");
+            window.showInAppNotification?.('trip_cancelled', 'Error', 'No se pudo actualizar el nombre.');
         } finally {
             setUploading(false);
         }
     };
 
     const handleChangeEmail = async () => {
-        if (!securityForm.email || !securityForm.email.includes('@')) return alert("Email inválido");
+        if (!securityForm.email || !securityForm.email.includes('@')) {
+            window.showInAppNotification?.('trip_cancelled', 'Email inválido', 'Ingresa un correo electrónico válido.');
+            return;
+        }
         try {
             setUploading(true);
             await verifyBeforeUpdateEmail(auth.currentUser, securityForm.email);
-            alert(`Se ha enviado un enlace de verificación a ${securityForm.email}. Por favor revísalo para confirmar el cambio.`);
+            window.showInAppNotification?.('default', 'Enlace enviado', `Revisa ${securityForm.email} para confirmar el cambio.`);
             setSecurityForm(prev => ({ ...prev, email: '' }));
         } catch (error) {
             console.error(error);
-            if (error.code === 'auth/requires-recent-login') {
-                alert("Por seguridad, debes cerrar sesión y volver a ingresar para cambiar tu correo.");
-            } else {
-                alert("Error: " + error.message);
-            }
+            const msg = error.code === 'auth/requires-recent-login'
+                ? 'Cierra sesión y vuelve a entrar para cambiar tu correo.'
+                : error.message;
+            window.showInAppNotification?.('trip_cancelled', 'Error', msg);
         } finally {
             setUploading(false);
         }
     };
 
     const handleChangePassword = async () => {
-        if (securityForm.password.length < 6) return alert("La contraseña debe tener al menos 6 caracteres");
+        if (securityForm.password.length < 6) {
+            window.showInAppNotification?.('trip_cancelled', 'Contraseña muy corta', 'Debe tener al menos 6 caracteres.');
+            return;
+        }
         try {
             setUploading(true);
             await updatePassword(auth.currentUser, securityForm.password);
-            alert("Contraseña actualizada exitosamente.");
+            window.showInAppNotification?.('default', 'Contraseña actualizada', '');
             setSecurityForm(prev => ({ ...prev, password: '' }));
         } catch (error) {
             console.error(error);
-            if (error.code === 'auth/requires-recent-login') {
-                alert("Por seguridad, debes cerrar sesión y volver a ingresar para cambiar tu contraseña.");
-            } else {
-                alert("Error: " + error.message);
-            }
+            const msg = error.code === 'auth/requires-recent-login'
+                ? 'Cierra sesión y vuelve a entrar para cambiar tu contraseña.'
+                : error.message;
+            window.showInAppNotification?.('trip_cancelled', 'Error', msg);
         } finally {
             setUploading(false);
         }
@@ -494,11 +498,11 @@ const Profile = () => {
                                         phoneNumber: formData.get('phoneNumber')
                                     });
 
-                                    setIsEditingVehicle(false); // Close form on success
-                                    alert('¡Información actualizada!');
+                                    setIsEditingVehicle(false);
+                                    window.showInAppNotification?.('default', 'Información actualizada', '');
                                 } catch (error) {
                                     console.error(error);
-                                    alert('Error al guardar.');
+                                    window.showInAppNotification?.('trip_cancelled', 'Error', 'No se pudo guardar la información.');
                                 } finally {
                                     setUploading(false);
                                 }

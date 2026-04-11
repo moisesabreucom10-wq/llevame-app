@@ -68,7 +68,7 @@ const Chat = ({ tripId, currentUser, otherUserName, onClose, otherUserDecoratedN
             });
         } catch (error) {
             console.error("Error sending message:", error);
-            alert("No se pudo enviar el mensaje");
+            window.showInAppNotification?.('trip_cancelled', 'Error', 'No se pudo enviar el mensaje');
         }
     };
 

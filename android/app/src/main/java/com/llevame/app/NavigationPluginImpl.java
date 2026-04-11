@@ -282,21 +282,29 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
     public void animateCamera(PluginCall call) {
         if (googleMap == null) { call.reject("Map not ready"); return; }
 
-        double lat = call.getDouble("lat", 0.0);
-        double lng = call.getDouble("lng", 0.0);
-        float zoom = call.getFloat("zoom", 15f);
-        float bearing = call.getFloat("bearing", 0f);
-        float tilt = call.getFloat("tilt", 0f);
+        // lat/lng are optional — if omitted, keep the current camera target
+        final Double lat = call.getDouble("lat");
+        final Double lng = call.getDouble("lng");
+        final Float zoom = call.getFloat("zoom");
+        final Float bearing = call.getFloat("bearing");
+        final Float tilt = call.getFloat("tilt");
 
         activity.runOnUiThread(() -> {
-            com.google.android.gms.maps.model.CameraPosition position =
-                new com.google.android.gms.maps.model.CameraPosition.Builder()
-                    .target(new LatLng(lat, lng))
-                    .zoom(zoom)
-                    .bearing(bearing)
-                    .tilt(tilt)
-                    .build();
-            googleMap.animateCamera(CameraUpdateFactory.newCameraPosition(position));
+            com.google.android.gms.maps.model.CameraPosition current = googleMap.getCameraPosition();
+
+            if (lat != null && lng != null) {
+                com.google.android.gms.maps.model.CameraPosition position =
+                    new com.google.android.gms.maps.model.CameraPosition.Builder()
+                        .target(new LatLng(lat, lng))
+                        .zoom(zoom     != null ? zoom     : current.zoom)
+                        .bearing(bearing != null ? bearing : current.bearing)
+                        .tilt(tilt     != null ? tilt     : current.tilt)
+                        .build();
+                googleMap.animateCamera(CameraUpdateFactory.newCameraPosition(position));
+            } else if (zoom != null) {
+                // Zoom-only — preserve current target, bearing, tilt
+                googleMap.animateCamera(CameraUpdateFactory.zoomTo(zoom));
+            }
             call.resolve();
         });
     }

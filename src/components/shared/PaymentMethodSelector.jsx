@@ -28,7 +28,8 @@ const PaymentMethodSelector = ({ selectedMethod, onSelect }) => {
     };
 
     const handleCopy = (text) => {
-        alert('Copiado: ' + text);
+        navigator.clipboard?.writeText(text).catch(() => {});
+        window.showInAppNotification?.('default', 'Copiado', text);
     };
 
     const handleAddCard = () => {
