@@ -176,7 +176,7 @@ const DriverHome = () => {
         try {
             await acceptTrip(tripId);
         } catch (error) {
-            alert('Error al aceptar el viaje: ' + error.message);
+            window.showInAppNotification?.('trip_cancelled', 'Error', error.message || 'No se pudo aceptar el viaje');
         }
     };
 
@@ -185,7 +185,7 @@ const DriverHome = () => {
         try {
             await startTrip(currentTrip.id);
         } catch (error) {
-            alert('Error al iniciar el viaje');
+            window.showInAppNotification?.('trip_cancelled', 'Error', 'No se pudo iniciar el viaje');
         }
     };
 
@@ -214,7 +214,7 @@ const DriverHome = () => {
         );
 
         if (dist > 0.5) { // 0.5 km tolerance
-            alert(`Estás muy lejos del destino (${dist.toFixed(2)} km). Acércate para finalizar.`);
+            window.showInAppNotification?.('driver_nearby', 'Muy lejos del destino', `Estás a ${dist.toFixed(2)} km. Acércate para finalizar.`);
             return;
         }
 
@@ -227,7 +227,7 @@ const DriverHome = () => {
             try {
                 await completeTrip(currentTrip.id, parseFloat(currentTrip.fare));
             } catch (error) {
-                alert('Error al completar el viaje');
+                window.showInAppNotification?.('trip_cancelled', 'Error', 'No se pudo completar el viaje');
             }
         }
     };

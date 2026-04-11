@@ -150,3 +150,13 @@ body {
 .animate-fadeIn {
   animation: fadeIn 0.2s ease-out;
 }
+
+@keyframes bounce-short {
+  0%, 100% { transform: translateY(0); }
+  40%       { transform: translateY(-10px); }
+  60%       { transform: translateY(-6px); }
+}
+
+.animate-bounce-short {
+  animation: bounce-short 1.2s ease-in-out infinite;
+}

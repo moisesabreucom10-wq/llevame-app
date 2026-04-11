@@ -199,7 +199,7 @@ const RiderHome = () => {
                 handleDestinationSelected(center, currentLocation);
             }
         } else {
-            alert('Mueve el mapa ligeramente para confirmar la ubicación.');
+            window.showInAppNotification?.('default', 'Ajusta el mapa', 'Mueve el mapa para ubicar el destino');
         }
     };
 
@@ -245,7 +245,7 @@ const RiderHome = () => {
         const finalFare = isNegotiating && customFare ? parseFloat(customFare) : Number(calculatedFare);
 
         if (isNaN(finalFare) || finalFare <= 0) {
-            alert("Por favor ingresa un monto válido.");
+            window.showInAppNotification?.('trip_cancelled', 'Monto inválido', 'Ingresa un monto mayor a $0');
             return;
         }
 
@@ -1046,7 +1046,7 @@ const RiderHome = () => {
                             onClick={() => {
                                 setSelectedDriver(null);
                                 // Here you could pre-select this driver for the request
-                                alert("Funcionalidad de elegir conductor específico próximamente");
+                                window.showInAppNotification?.('default', 'Próximamente', 'Podrás elegir tu conductor favorito');
                             }}
                         >
                             Solicitar viaje
