@@ -52,13 +52,21 @@ const NativeMapView = ({
     // ─────────────────────────────────────────────
     useEffect(() => {
         let resizeObserver;
+        let mounted = true; // Guard: impide que initMap complete si ya nos desmontamos
 
         const init = async () => {
             const bounds = getBounds();
-            if (!bounds) return;
+            if (!bounds || !mounted) return;
 
             try {
                 await NavigationPlugin.initMap(bounds);
+
+                // Si nos desmontamos mientras esperábamos, destruir inmediatamente
+                if (!mounted) {
+                    NavigationPlugin.destroyMap();
+                    return;
+                }
+
                 initializedRef.current = true;
 
                 // Registrar event listeners nativos → React
@@ -91,7 +99,9 @@ const NativeMapView = ({
                         NavigationPlugin.updateMapBounds(newBounds);
                     }
                 });
-                resizeObserver.observe(containerRef.current);
+                if (containerRef.current) {
+                    resizeObserver.observe(containerRef.current);
+                }
 
             } catch (err) {
                 console.error('[NativeMapView] init error:', err);
@@ -102,6 +112,7 @@ const NativeMapView = ({
         const raf = requestAnimationFrame(init);
 
         return () => {
+            mounted = false;
             cancelAnimationFrame(raf);
             resizeObserver?.disconnect();
 
@@ -109,7 +120,7 @@ const NativeMapView = ({
             listenersRef.current.forEach(l => l?.remove?.());
             listenersRef.current = [];
 
-            // Destruir la vista nativa
+            // Destruir la vista nativa (serializado: espera a que initMap complete si está en vuelo)
             if (initializedRef.current) {
                 NavigationPlugin.destroyMap();
                 initializedRef.current = false;

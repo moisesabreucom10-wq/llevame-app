@@ -70,6 +70,7 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
     private final Map<String, Marker> markers = new HashMap<>();
     private boolean isNavigating = false;
     private boolean sdkInitialized = false;
+    private boolean destroyed = false; // Guard contra race condition initMap vs destroyMap
 
     // Listeners activos — guardados para poder removerlos al destruir
     private ArrivalListener arrivalListener;
@@ -112,9 +113,16 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
             rootLayout.addView(mapContainer, 0);
 
             // 4. Inicializar el Navigation SDK (acepta ToS automáticamente si ya fue aceptado)
+            destroyed = false;
             NavigationApi.getNavigator(activity, new NavigationApi.NavigatorInitializationCallback() {
                 @Override
                 public void onNavigatorReady(@NonNull Navigator nav) {
+                    // Si destroyMap fue llamado mientras esperábamos, abortar
+                    if (destroyed) {
+                        nav.cleanup();
+                        return;
+                    }
+
                     navigator = nav;
                     sdkInitialized = true;
                     setupNavigationListeners();
@@ -136,7 +144,9 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
 
                 @Override
                 public void onError(@NonNull NavigationApi.ErrorCode errorCode) {
-                    call.reject("Navigation SDK init error: " + errorCode.name());
+                    if (!destroyed) {
+                        call.reject("Navigation SDK init error: " + errorCode.name());
+                    }
                 }
             });
         });
@@ -148,6 +158,7 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
 
     @Override
     public void onMapReady(@NonNull GoogleMap map) {
+        if (destroyed) return;
         this.googleMap = map;
 
         // Configurar mapa
@@ -462,6 +473,7 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
     // ─────────────────────────────────────────────
 
     public void destroyMap(PluginCall call) {
+        destroyed = true; // Impedir que onNavigatorReady ejecute si llega tarde
         activity.runOnUiThread(() -> {
             // Remover listener de ubicación
             if (locationProvider != null && locationListener != null) {
