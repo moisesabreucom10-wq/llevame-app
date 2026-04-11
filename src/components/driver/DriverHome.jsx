@@ -10,7 +10,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 
 const DriverHome = () => {
-    const { nearbyTrips, currentTrip, acceptTrip, startTrip, completeTrip, isDriverOnline, setIsDriverOnline } = useTrip();
+    const { nearbyTrips, currentTrip, acceptTrip, startTrip, completeTrip, cancelTrip, isDriverOnline, setIsDriverOnline } = useTrip();
     const { userProfile, currentUser } = useAuth();
     const { currentLocation, getCurrentPosition, updateLocation } = useLocation();
     const map = useNativeMap();
@@ -454,7 +454,7 @@ const DriverHome = () => {
                                                 visible: true,
                                                 title: '¿Cancelar viaje?',
                                                 message: 'Solo úsalo en emergencias. El viaje será cancelado sin cobro.',
-                                                onConfirm: () => completeTrip(currentTrip.id, 0),
+                                                onConfirm: () => cancelTrip(currentTrip.id),
                                                 danger: true,
                                             })}
                                             className="mt-4 w-full py-3 text-red-500 font-medium text-sm flex items-center justify-center gap-1 opacity-70 hover:opacity-100"

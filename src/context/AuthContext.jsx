@@ -65,7 +65,6 @@ export const AuthProvider = ({ children }) => {
                         if (docSnap.exists()) {
                             setUserProfile(docSnap.data());
                         } else {
-                            console.log("User profile document does not exist yet");
                             setUserProfile(null);
                         }
                         setLoading(false);
@@ -107,13 +106,11 @@ export const AuthProvider = ({ children }) => {
             return;
         }
 
-        console.log('Checking user profile in Firestore for UID:', user.uid);
         try {
             const userRef = doc(db, 'llevame_users', user.uid);
             const userSnap = await getDoc(userRef);
 
             if (!userSnap.exists()) {
-                console.log('Creating new user profile...');
                 await setDoc(userRef, {
                     id: user.uid,
                     email: user.email,
@@ -122,9 +119,6 @@ export const AuthProvider = ({ children }) => {
                     createdAt: new Date().toISOString(),
                     userType: null
                 });
-                console.log('User profile created.');
-            } else {
-                console.log('User profile already exists.');
             }
         } catch (firestoreError) {
             console.error("Firestore operation failed:", firestoreError);
@@ -133,8 +127,6 @@ export const AuthProvider = ({ children }) => {
 
     const loginWithGoogle = async () => {
         try {
-            console.log('Starting Native Google Sign-In...');
-
             // 1. Perform native sign-in
             const result = await FirebaseAuthentication.signInWithGoogle();
 
@@ -146,15 +138,11 @@ export const AuthProvider = ({ children }) => {
                 throw new Error('No ID token found in native sign-in result');
             }
 
-            console.log('Native sign-in successful, syncing with Firebase Web SDK...');
-
             // 3. Create a Firebase credential from the native token
             const googleCredential = GoogleAuthProvider.credential(idToken);
 
             // 4. Sign in to Firebase Web SDK with the credential
             const userCredential = await signInWithCredential(auth, googleCredential);
-
-            console.log('Firebase Web SDK sign-in successful:', userCredential.user.uid);
 
             // 5. Create profile if needed
             await checkAndCreateProfile(userCredential.user);

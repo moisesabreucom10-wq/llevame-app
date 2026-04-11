@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import NativeMapView from '../shared/NativeMapView';
 import PlaceSearch from '../shared/PlaceSearch';
 import { MapPin, Navigation, Search, MessageCircle, Phone, X, AlertCircle, Compass, Layers, Locate, Minus, Plus, ChevronDown, ChevronUp, Map as MapIcon, User, Star, Car, Clock, ArrowLeft, DollarSign, Package } from 'lucide-react';
@@ -140,6 +140,21 @@ const RiderHome = () => {
             }, 500);
         }
     }, [currentLocation, hasCenteredInitial]);
+
+    // Detectar finalización o cancelación del viaje para notificar al pasajero.
+    // TripContext filtra 'completed'/'cancelled' de la query → currentTrip pasa a null.
+    const prevTripRef = useRef(null);
+    useEffect(() => {
+        const prev = prevTripRef.current;
+        if (prev && !currentTrip) {
+            if (prev.status === 'in_progress') {
+                window.showInAppNotification?.('trip_completed', '¡Viaje finalizado!', 'Gracias por usar Llevame');
+            } else {
+                window.showInAppNotification?.('trip_cancelled', 'Viaje cancelado', 'El viaje fue cancelado.');
+            }
+        }
+        prevTripRef.current = currentTrip;
+    }, [currentTrip]);
 
     // Reset details when destination changes
     useEffect(() => {

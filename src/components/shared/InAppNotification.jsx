@@ -148,9 +148,11 @@ const InAppNotification = () => {
                                     <h4 className="text-white font-bold text-base leading-tight">
                                         {notification.title}
                                     </h4>
-                                    <p className="text-white/80 text-sm mt-0.5 truncate">
-                                        {notification.message}
-                                    </p>
+                                    {notification.message ? (
+                                        <p className="text-white/80 text-sm mt-0.5 truncate">
+                                            {notification.message}
+                                        </p>
+                                    ) : null}
                                 </div>
 
                                 {/* Close Button */}
@@ -181,24 +183,3 @@ const InAppNotification = () => {
 };
 
 export default InAppNotification;
-
-// CSS que necesitas agregar a tu index.css:
-/*
-@keyframes shimmer {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
-}
-
-@keyframes shrink {
-    0% { width: 100%; }
-    100% { width: 0%; }
-}
-
-.animate-shimmer {
-    animation: shimmer 2s infinite;
-}
-
-.animate-shrink {
-    animation: shrink 4s linear forwards;
-}
-*/
