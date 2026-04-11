@@ -157,13 +157,16 @@ const DriverHome = () => {
 
     const handleArrival = useCallback(async (waypoint) => {
         if (currentTrip?.status === 'accepted') {
-            // Llegó al pasajero — marcar como in_progress automáticamente
-            await startTrip(currentTrip.id);
+            // Llegó al pasajero — marcar como in_progress y notificar
+            try {
+                await startTrip(currentTrip.id);
+                window.showInAppNotification?.('driver_arrived', '¡Llegaste!', 'Inicia el viaje cuando el pasajero suba.');
+            } catch (e) { /* silent — trip state listener will update */ }
         } else if (currentTrip?.status === 'in_progress') {
-            // Llegó al destino
-            await completeTrip(currentTrip.id);
+            // Llegó al destino — el conductor debe confirmar cobro manualmente
+            window.showInAppNotification?.('trip_completed', '¡Destino alcanzado!', 'Confirma el cobro para finalizar el viaje.');
         }
-    }, [currentTrip, startTrip, completeTrip]);
+    }, [currentTrip, startTrip]);
 
     const handleSpeedAlert = useCallback((currentSpeed, speedLimit, isOver) => {
         setSpeedInfo({ current: Math.round(currentSpeed), limit: Math.round(speedLimit), isOver });
