@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import NativeMapView from '../shared/NativeMapView';
+import SecureImage from '../shared/SecureImage';
 import { Power, Map as MapIcon, Navigation, Layers, CheckCircle, Clock, Plus, Minus, Compass, Locate, MessageCircle, Bell, ChevronDown, ChevronUp, Volume2, VolumeX } from 'lucide-react';
 import Chat from '../shared/Chat';
 import { useTrip } from '../../context/TripContext';
@@ -46,8 +47,8 @@ const DriverHome = () => {
                         setBcvRate(data.promedio);
                     }
                 }
-            } catch (error) {
-                console.warn("Failed to fetch BCV rate, using default:", error);
+            } catch {
+                // BCV fetch failed, keep default rate
             }
         };
         fetchBCV();
@@ -397,18 +398,16 @@ const DriverHome = () => {
                                 {/* Rider Info Card */}
                                 <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl mb-6 shadow-sm border border-gray-100">
                                     <div className="w-14 h-14 rounded-full overflow-hidden shadow-md shrink-0 border-2 border-white ring-2 ring-gray-100">
-                                        {currentTrip.riderPhoto ? (
-                                            <img
-                                                src={currentTrip.riderPhoto}
-                                                alt="Pasajero"
-                                                className="w-full h-full object-cover"
-                                                onError={(e) => e.target.style.display = 'none'}
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center text-white font-bold text-xl">
-                                                {currentTrip.riderName?.[0] || 'P'}
-                                            </div>
-                                        )}
+                                        <SecureImage
+                                            src={currentTrip.riderPhoto}
+                                            alt="Pasajero"
+                                            className="w-full h-full object-cover"
+                                            fallback={
+                                                <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center text-white font-bold text-xl">
+                                                    {currentTrip.riderName?.[0] || 'P'}
+                                                </div>
+                                            }
+                                        />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="font-bold text-lg text-gray-800 truncate">{currentTrip.riderName || 'Pasajero'}</p>
@@ -602,18 +601,16 @@ const DriverHome = () => {
                                                 {/* Header: Rider Info & Price */}
                                                 <div className="flex items-center gap-3 mb-3 pb-3 border-b border-gray-50">
                                                     <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-100 shrink-0 border border-gray-100 shadow-sm">
-                                                        {trip.riderPhoto ? (
-                                                            <img
-                                                                src={trip.riderPhoto}
-                                                                alt="Pasajero"
-                                                                className="w-full h-full object-cover"
-                                                                onError={(e) => e.target.style.display = 'none'}
-                                                            />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center text-gray-400 font-bold text-lg bg-gray-50">
-                                                                {trip.riderName?.[0] || 'P'}
-                                                            </div>
-                                                        )}
+                                                        <SecureImage
+                                                            src={trip.riderPhoto}
+                                                            alt="Pasajero"
+                                                            className="w-full h-full object-cover"
+                                                            fallback={
+                                                                <div className="w-full h-full flex items-center justify-center text-gray-400 font-bold text-lg bg-gray-50">
+                                                                    {trip.riderName?.[0] || 'P'}
+                                                                </div>
+                                                            }
+                                                        />
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <span className="font-bold text-gray-900 text-lg block leading-tight truncate">

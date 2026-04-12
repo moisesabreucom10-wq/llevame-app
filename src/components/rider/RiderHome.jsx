@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import NativeMapView from '../shared/NativeMapView';
+import SecureImage from '../shared/SecureImage';
 import PlaceSearch from '../shared/PlaceSearch';
 import { MapPin, Navigation, Search, MessageCircle, Phone, X, AlertCircle, Compass, Layers, Locate, Minus, Plus, ChevronDown, ChevronUp, Map as MapIcon, User, Star, Car, Clock, ArrowLeft, DollarSign, Package } from 'lucide-react';
 import Chat from '../shared/Chat';
@@ -67,8 +68,8 @@ const RiderHome = () => {
                         setBcvRate(data.promedio);
                     }
                 }
-            } catch (error) {
-                console.warn("Failed to fetch BCV rate, using default:", error);
+            } catch {
+                // BCV fetch failed, keep default rate
             }
         };
         fetchBCV();
@@ -222,8 +223,8 @@ const RiderHome = () => {
                     setDestination(address);
                     setDestinationAddress(address);
                 }
-            } catch (error) {
-                console.warn('Geocoding failed', error);
+            } catch {
+                // Reverse geocoding failed, keep coordinate string as label
             }
 
             // Calcular tarifa con Distance Matrix
@@ -593,18 +594,16 @@ const RiderHome = () => {
                             {currentTrip.driverName && (
                                 <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl mb-6 shadow-inner">
                                     <div className="w-14 h-14 rounded-full overflow-hidden shadow-sm shrink-0 border-2 border-white">
-                                        {currentTrip.driverPhoto ? (
-                                            <img
-                                                src={currentTrip.driverPhoto}
-                                                alt="Conductor"
-                                                className="w-full h-full object-cover"
-                                                onError={(e) => e.target.style.display = 'none'}
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center text-white font-bold text-xl">
-                                                {currentTrip.driverName[0]}
-                                            </div>
-                                        )}
+                                        <SecureImage
+                                            src={currentTrip.driverPhoto}
+                                            alt="Conductor"
+                                            className="w-full h-full object-cover"
+                                            fallback={
+                                                <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center text-white font-bold text-xl">
+                                                    {currentTrip.driverName[0]}
+                                                </div>
+                                            }
+                                        />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="font-bold text-gray-900 text-lg truncate">{currentTrip.driverName}</p>
@@ -965,11 +964,12 @@ const RiderHome = () => {
 
                         <div className="flex items-center gap-4 mb-6">
                             <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden border-2 border-white shadow-md">
-                                {selectedDriver.photoURL ? (
-                                    <img src={selectedDriver.photoURL} alt="Driver" className="w-full h-full object-cover" />
-                                ) : (
-                                    <User size={32} className="text-gray-400" />
-                                )}
+                                <SecureImage
+                                    src={selectedDriver.photoURL}
+                                    alt="Driver"
+                                    className="w-full h-full object-cover"
+                                    fallback={<User size={32} className="text-gray-400" />}
+                                />
                             </div>
                             <div>
                                 <h4 className="font-bold text-lg text-gray-900">{selectedDriver.name || 'Conductor'}</h4>

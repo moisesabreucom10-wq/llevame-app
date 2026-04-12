@@ -658,7 +658,7 @@ const Profile = () => {
                                 <div
                                     key={trip.id}
                                     onClick={() => setSelectedChatTrip(trip)}
-                                    className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3 active:scale-98 transition-transform"
+                                    className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3 active:scale-95 transition-transform"
                                 >
                                     <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 shrink-0">
                                         {otherPhoto ? (

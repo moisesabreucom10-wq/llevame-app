@@ -61,8 +61,8 @@ const SecureImage = ({ src, className, alt, fallback }) => {
                                     }
                                 }
                             }
-                        } catch (nativeErr) {
-                            console.error("SecureImage: Native fetch failed", nativeErr);
+                        } catch {
+                            // Native fetch failed; fall through to standard src
                         }
 
                         // Fallback to standard source
@@ -81,8 +81,7 @@ const SecureImage = ({ src, className, alt, fallback }) => {
                     return;
                 }
 
-            } catch (err) {
-                console.error('SecureImage: Error loading image', err);
+            } catch {
                 if (isActive) {
                     setError(true);
                     setLoading(false);
@@ -120,10 +119,7 @@ const SecureImage = ({ src, className, alt, fallback }) => {
             src={imageSrc}
             alt={alt || 'Image'}
             className={className || ''}
-            onError={() => {
-                console.error('SecureImage: Image failed to load', imageSrc);
-                setError(true);
-            }}
+            onError={() => setError(true)}
         />
     );
 };
