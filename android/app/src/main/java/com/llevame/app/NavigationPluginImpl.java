@@ -228,7 +228,7 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
         });
 
         // Proveedor de ubicación sincronizado con la carretera
-        locationProvider = NavigationApi.getRoadSnappedLocationProvider(activity);
+        locationProvider = NavigationApi.getRoadSnappedLocationProvider(activity.getApplication());
         if (locationProvider != null) {
             locationListener = new RoadSnappedLocationProvider.LocationListener() {
                 @Override
@@ -448,7 +448,7 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
 
         try {
             List<Waypoint> waypoints = new ArrayList<>();
-            org.json.JSONArray wps = call.getArray("waypoints").toJSONArray();
+            org.json.JSONArray wps = call.getArray("waypoints");
             for (int i = 0; i < wps.length(); i++) {
                 org.json.JSONObject wp = wps.getJSONObject(i);
                 double lat = wp.getDouble("lat");
