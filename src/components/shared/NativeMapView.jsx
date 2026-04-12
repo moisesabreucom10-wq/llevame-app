@@ -69,8 +69,11 @@ const NativeMapView = ({
 
                 initializedRef.current = true;
 
-                // Registrar event listeners nativos → React
-                const listeners = [
+                // Registrar event listeners nativos → React.
+                // addListener() en Capacitor nativo devuelve una Promise<PluginListenerHandle>.
+                // Usar Promise.all para obtener los handles resueltos antes de guardarlos,
+                // de lo contrario el cleanup llama .remove() sobre Promises (no-op).
+                const listenerHandles = await Promise.all([
                     NavigationPlugin.addListener(NAV_EVENTS.LOCATION_UPDATE, (data) => {
                         onLocationUpdate?.(data.lat, data.lng, data.speed, data.bearing);
                     }),
@@ -89,8 +92,8 @@ const NativeMapView = ({
                     NavigationPlugin.addListener(NAV_EVENTS.CAMERA_MOVE, (data) => {
                         onCameraMove?.(data.lat, data.lng);
                     }),
-                ];
-                listenersRef.current = listeners;
+                ]);
+                listenersRef.current = listenerHandles;
 
                 // ResizeObserver: sincroniza bounds si el layout cambia
                 resizeObserver = new ResizeObserver(() => {

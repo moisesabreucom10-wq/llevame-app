@@ -8,6 +8,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
+        android:hardwareAccelerated="true"
         android:theme="@style/AppTheme">
 
         <!-- Google Maps / Navigation SDK API Key -->
@@ -54,7 +55,12 @@
     <!-- NOTIFICACIONES - Requerido para Android 13+ -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <!-- Almacenamiento: READ_EXTERNAL_STORAGE solo para API ≤ 32 (Android 12L y anteriores) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"  android:maxSdkVersion="32"/>
+    <!-- WRITE_EXTERNAL_STORAGE solo necesario para API ≤ 28 (Android 9 y anteriores) -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
+    <!-- Android 13+ (API 33+): permisos granulares de medios -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <uses-feature android:name="android.hardware.location.gps" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>

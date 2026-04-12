@@ -11,6 +11,7 @@ import { useTrip } from '../../context/TripContext';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation } from '../../context/LocationContext';
 import PaymentMethodSelector from '../shared/PaymentMethodSelector';
+import RatingModal from '../shared/RatingModal';
 
 // Tarifa escalonada en USD — función pura compartida entre render y handleRequestRide
 function calculateTieredFare(km, vehicleType) {
@@ -84,6 +85,7 @@ const RiderHome = () => {
     const [nearbyDrivers, setNearbyDrivers] = useState([]);
     const [selectedDriver, setSelectedDriver] = useState(null);
     const [isChatOpen, setIsChatOpen] = useState(false);
+    const [ratingTrip, setRatingTrip] = useState(null); // Trip to rate after completion
 
     // Haversine — solo para filtro de conductores cercanos (no requiere API)
     const getDistanceFromLatLonInKm = (lat1, lon1, lat2, lon2) => {
@@ -155,14 +157,15 @@ const RiderHome = () => {
         }
     }, [currentLocation, hasCenteredInitial]);
 
-    // Detectar finalización o cancelación del viaje para notificar al pasajero.
+    // Detectar finalización o cancelación del viaje.
     // TripContext filtra 'completed'/'cancelled' de la query → currentTrip pasa a null.
     const prevTripRef = useRef(null);
     useEffect(() => {
         const prev = prevTripRef.current;
         if (prev && !currentTrip) {
             if (prev.status === 'in_progress') {
-                window.showInAppNotification?.('trip_completed', '¡Viaje finalizado!', 'Gracias por usar Llevame');
+                // Abrir modal de calificación en lugar de solo notificación
+                setRatingTrip(prev);
             } else {
                 window.showInAppNotification?.('trip_cancelled', 'Viaje cancelado', 'El viaje fue cancelado.');
             }
@@ -1045,6 +1048,15 @@ const RiderHome = () => {
                     onClose={() => setIsChatOpen(false)}
                 />
             )}
+
+            <RatingModal
+                isOpen={!!ratingTrip}
+                trip={ratingTrip}
+                onClose={() => {
+                    window.showInAppNotification?.('trip_completed', '¡Viaje finalizado!', 'Gracias por usar Llevame');
+                    setRatingTrip(null);
+                }}
+            />
         </div>
     );
 };
