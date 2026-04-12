@@ -1,0 +1,31 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# local.properties.template
+#
+# Copia este archivo como `local.properties` y rellena los valores.
+# El archivo local.properties NUNCA se sube al repo (está en .gitignore).
+#
+# OPCIÓN A — Generar automáticamente con el script:
+#   chmod +x setup_nav_sdk.sh
+#   ./setup_nav_sdk.sh ~/Downloads/service-account-key.json
+#
+# OPCIÓN B — Usar gcloud CLI:
+#   gcloud auth application-default login
+#   ./setup_nav_sdk.sh
+#
+# OPCIÓN C — Pegar manualmente un token ya obtenido:
+#   TOKEN=$(gcloud auth application-default print-access-token)
+#   y luego editar este archivo con ese valor.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Ruta al Android SDK (Android Studio lo escribe aquí automáticamente)
+# Ejemplos:
+#   macOS:  sdk.dir=/Users/TU_USUARIO/Library/Android/sdk
+#   Linux:  sdk.dir=/home/TU_USUARIO/Android/Sdk
+#   Windows: sdk.dir=C\:\\Users\\TU_USUARIO\\AppData\\Local\\Android\\Sdk
+sdk.dir=
+
+# Token OAuth2 para descargar el Navigation SDK for Android desde el repositorio privado de Google.
+# Se obtiene con el script setup_nav_sdk.sh o con gcloud.
+# Formato: ya29.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# Validez: ~60 minutos. Ejecutar setup_nav_sdk.sh de nuevo si Gradle da error 401.
+NAVIGATION_SDK_TOKEN=

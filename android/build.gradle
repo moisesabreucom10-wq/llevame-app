@@ -1,7 +1,7 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 buildscript {
-    
+
     repositories {
         google()
         mavenCentral()
@@ -17,13 +17,37 @@ buildscript {
 
 apply from: "variables.gradle"
 
+// ─────────────────────────────────────────────────────────────
+// Leer local.properties para credenciales del Navigation SDK
+// El archivo local.properties NUNCA se sube al repo (.gitignore)
+// ─────────────────────────────────────────────────────────────
+def localProps = new Properties()
+def localPropsFile = rootProject.file('local.properties')
+if (localPropsFile.exists()) {
+    localPropsFile.withInputStream { localProps.load(it) }
+}
+
+// Token OAuth2 para el repositorio privado del Navigation SDK.
+// Se genera con: gcloud auth application-default print-access-token
+// O con el script: ./setup_nav_sdk.sh <ruta-a-service-account.json>
+def navSdkToken = localProps['NAVIGATION_SDK_TOKEN'] ?: System.getenv('NAVIGATION_SDK_TOKEN') ?: ''
+
 allprojects {
     repositories {
         google()
         mavenCentral()
-        // Navigation SDK for Android — repositorio privado de Google
+        // Navigation SDK for Android — repositorio autenticado de Google
         maven {
             url 'https://artifact.navigation.google.com/maven2'
+            if (navSdkToken) {
+                authentication {
+                    basic(BasicAuthentication)
+                }
+                credentials {
+                    username = 'oauth2accesstoken'
+                    password = navSdkToken
+                }
+            }
         }
     }
 }
