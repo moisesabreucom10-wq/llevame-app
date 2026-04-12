@@ -178,11 +178,14 @@ export const AuthProvider = ({ children }) => {
 
     // Helper to manually update profile (for optimistic UI updates)
     const updateUserProfile = (newProfileData) => {
-        setUserProfile(prev => ({ ...prev, ...newProfileData }));
-        // Also persist to localStorage to survive reloads
-        try {
-            localStorage.setItem('userProfile', JSON.stringify({ ...userProfile, ...newProfileData }));
-        } catch (e) { console.error("Error saving profile to local storage", e); }
+        setUserProfile(prev => {
+            const merged = { ...prev, ...newProfileData };
+            // Persistir en localStorage usando el valor actualizado, no el closure stale
+            try {
+                localStorage.setItem('userProfile', JSON.stringify(merged));
+            } catch { }
+            return merged;
+        });
     };
 
     // Attempt to load from localStorage on mount (to avoid flicker)
