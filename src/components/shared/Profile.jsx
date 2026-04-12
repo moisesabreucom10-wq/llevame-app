@@ -605,8 +605,8 @@ const Profile = () => {
 
             {/* Feedback Modal */}
             {showFeedback && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-in fade-in duration-200">
-                    <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl animate-in slide-in-from-bottom-10 duration-300">
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl animate-slide-up">
                         <h3 className="text-xl font-black text-gray-900 mb-2">Tu Opinión Importa</h3>
                         <p className="text-gray-500 text-sm mb-4">¿Cómo podemos mejorar LLEVAME? Cuéntanos tu idea o problema.</p>
 
