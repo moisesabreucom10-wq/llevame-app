@@ -67,7 +67,7 @@ public class NavigationPlugin extends Plugin {
 
     /**
      * Cambia el tipo de mapa.
-     * options: { mapType: 'normal' | 'satellite' | 'terrain' | 'night' }
+     * options: { mapType: 'normal' | 'satellite' | 'terrain' | 'hybrid' }
      */
     @PluginMethod
     public void setMapType(PluginCall call) {

@@ -8,7 +8,8 @@ const Chat = ({ tripId, currentUser, otherUserName, onClose, otherUserDecoratedN
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
     const messagesEndRef = useRef(null);
-    const [previousMessageCount, setPreviousMessageCount] = useState(0);
+    // Ref (not state) so the snapshot callback can read it without re-subscribing
+    const previousMessageCountRef = useRef(0);
 
     // Auto-scroll to bottom of chat
     const scrollToBottom = () => {
@@ -33,7 +34,7 @@ const Chat = ({ tripId, currentUser, otherUserName, onClose, otherUserDecoratedN
             }));
 
             // NOTIFICACIÓN: Si hay nuevo mensaje de la otra persona
-            if (msgs.length > previousMessageCount && previousMessageCount > 0) {
+            if (msgs.length > previousMessageCountRef.current && previousMessageCountRef.current > 0) {
                 const lastMsg = msgs[msgs.length - 1];
                 // Solo notificar si el mensaje NO es mío
                 if (lastMsg.senderId !== currentUser.uid) {
@@ -44,13 +45,14 @@ const Chat = ({ tripId, currentUser, otherUserName, onClose, otherUserDecoratedN
                     );
                 }
             }
-            setPreviousMessageCount(msgs.length);
+            previousMessageCountRef.current = msgs.length;
 
             setMessages(msgs);
         });
 
         return () => unsubscribe();
-    }, [tripId, currentUser, otherUserName, isDriver, previousMessageCount]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tripId]); // currentUser/otherUserName/isDriver are stable for the chat session
 
     const handleSendMessage = async (e) => {
         e.preventDefault();
