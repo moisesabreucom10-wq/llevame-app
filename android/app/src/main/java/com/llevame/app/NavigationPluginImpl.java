@@ -22,14 +22,12 @@ import android.location.Location;
 import com.google.android.libraries.navigation.ArrivalEvent;
 import com.google.android.libraries.navigation.ListenableResultFuture;
 import com.google.android.libraries.navigation.NavigationApi;
+import com.google.android.libraries.navigation.NavigatorInitializationCallback;
 import com.google.android.libraries.navigation.Navigator;
 import com.google.android.libraries.navigation.Navigator.ArrivalListener;
 import com.google.android.libraries.navigation.Navigator.RouteChangedListener;
 import com.google.android.libraries.navigation.RoadSnappedLocationProvider;
 import com.google.android.libraries.navigation.RoutingOptions;
-import com.google.android.libraries.navigation.SpeedAlertOptions;
-import com.google.android.libraries.navigation.SpeedAlertSeverity;
-import com.google.android.libraries.navigation.SpeedingUpdate;
 import com.google.android.libraries.navigation.SupportNavigationFragment;
 import com.google.android.libraries.navigation.Waypoint;
 
@@ -112,9 +110,9 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
             ViewGroup rootLayout = (ViewGroup) activity.getWindow().getDecorView().getRootView();
             rootLayout.addView(mapContainer, 0);
 
-            // 4. Inicializar el Navigation SDK (acepta ToS automáticamente si ya fue aceptado)
+            // 4. Inicializar el Navigation SDK
             destroyed = false;
-            NavigationApi.getNavigator(activity, new NavigationApi.NavigatorInitializationCallback() {
+            NavigationApi.getNavigator(activity, new NavigatorInitializationCallback() {
                 @Override
                 public void onNavigatorReady(@NonNull Navigator nav) {
                     // Si destroyMap fue llamado mientras esperábamos, abortar
@@ -145,7 +143,7 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
                 @Override
                 public void onError(@NonNull NavigationApi.ErrorCode errorCode) {
                     if (!destroyed) {
-                        call.reject("Navigation SDK init error: " + errorCode.name());
+                        call.reject("Navigation SDK init error: " + errorCode.toString());
                     }
                 }
             });
@@ -162,7 +160,11 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
         this.googleMap = map;
 
         // Configurar mapa
-        googleMap.setMyLocationEnabled(true);
+        try {
+            googleMap.setMyLocationEnabled(true);
+        } catch (SecurityException e) {
+            // Permiso de ubicación no concedido aún — el botón se habilitará cuando se otorgue
+        }
         googleMap.getUiSettings().setMyLocationButtonEnabled(false);
         googleMap.getUiSettings().setCompassEnabled(false);
         googleMap.getUiSettings().setMapToolbarEnabled(false);
@@ -209,23 +211,6 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
             }
         };
         navigator.addRouteChangedListener(routeChangedListener);
-
-        // Alertas de velocidad
-        SpeedAlertOptions speedAlertOptions = new SpeedAlertOptions.Builder()
-            .setSpeedAlertThresholdPercentage(SpeedAlertSeverity.MINOR, 5f)
-            .setSpeedAlertThresholdPercentage(SpeedAlertSeverity.MAJOR, 15f)
-            .build();
-        navigator.setSpeedAlertOptions(speedAlertOptions);
-
-        navigator.addSpeedingListener(new Navigator.SpeedingListener() {
-            @Override
-            public void onSpeedingUpdated(@NonNull SpeedingUpdate update) {
-                float pct = update.getPercentageAboveLimit();
-                // Estimar velocidad límite a partir del porcentaje y velocidad actual
-                float speedLimit = (pct > 0) ? lastSpeed / (1f + pct / 100f) : 0f;
-                plugin.emitSpeedAlert(lastSpeed, speedLimit);
-            }
-        });
 
         // Proveedor de ubicación sincronizado con la carretera
         locationProvider = NavigationApi.getRoadSnappedLocationProvider(activity.getApplication());
@@ -282,7 +267,6 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
     public void animateCamera(PluginCall call) {
         if (googleMap == null) { call.reject("Map not ready"); return; }
 
-        // lat/lng are optional — if omitted, keep the current camera target
         final Double lat = call.getDouble("lat");
         final Double lng = call.getDouble("lng");
         final Float zoom = call.getFloat("zoom");
@@ -302,7 +286,6 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
                         .build();
                 googleMap.animateCamera(CameraUpdateFactory.newCameraPosition(position));
             } else if (zoom != null) {
-                // Zoom-only — preserve current target, bearing, tilt
                 googleMap.animateCamera(CameraUpdateFactory.zoomTo(zoom));
             }
             call.resolve();
@@ -366,7 +349,7 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
                         new com.google.android.gms.maps.model.MapStyleOptions(NIGHT_MAP_STYLE);
                     googleMap.setMapStyle(style);
                 } else {
-                    googleMap.setMapStyle(null); // Restaurar estilo por defecto
+                    googleMap.setMapStyle(null);
                 }
                 call.resolve();
             } catch (Exception e) {
@@ -391,7 +374,6 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
         int height = call.getInt("height", 40);
 
         activity.runOnUiThread(() -> {
-            // Eliminar marcador existente con ese ID
             if (markers.containsKey(id)) {
                 markers.get(id).remove();
             }
@@ -400,7 +382,6 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
                 .position(new LatLng(lat, lng))
                 .title(title);
 
-            // Ícono SVG personalizado desde base64
             if (svgBase64 != null && !svgBase64.isEmpty()) {
                 try {
                     byte[] decoded = Base64.decode(svgBase64, Base64.DEFAULT);
@@ -455,7 +436,7 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
                 double lng = wp.getDouble("lng");
                 String title = wp.optString("title", "Destino");
                 waypoints.add(
-                    new Waypoint.Builder()
+                    Waypoint.builder()
                         .setLatLng(lat, lng)
                         .setTitle(title)
                         .build()
@@ -528,16 +509,14 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
     // ─────────────────────────────────────────────
 
     public void destroyMap(PluginCall call) {
-        destroyed = true; // Impedir que onNavigatorReady ejecute si llega tarde
+        destroyed = true;
         activity.runOnUiThread(() -> {
-            // Remover listener de ubicación
             if (locationProvider != null && locationListener != null) {
                 locationProvider.removeLocationListener(locationListener);
                 locationListener = null;
                 locationProvider = null;
             }
 
-            // Remover listeners de navegación
             if (navigator != null) {
                 if (arrivalListener != null) navigator.removeArrivalListener(arrivalListener);
                 if (routeChangedListener != null) navigator.removeRouteChangedListener(routeChangedListener);
@@ -545,11 +524,9 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
                 navigator = null;
             }
 
-            // Eliminar todos los marcadores
             for (Marker m : markers.values()) m.remove();
             markers.clear();
 
-            // Remover fragment
             if (navFragment != null) {
                 ((FragmentActivity) activity).getSupportFragmentManager()
                     .beginTransaction()
@@ -558,14 +535,12 @@ public class NavigationPluginImpl implements OnMapReadyCallback {
                 navFragment = null;
             }
 
-            // Remover contenedor del layout
             if (mapContainer != null) {
                 ViewGroup parent = (ViewGroup) mapContainer.getParent();
                 if (parent != null) parent.removeView(mapContainer);
                 mapContainer = null;
             }
 
-            // Restaurar WebView opaco
             restoreWebViewBackground();
 
             googleMap = null;
