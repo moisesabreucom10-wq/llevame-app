@@ -661,13 +661,16 @@ const Profile = () => {
                                     className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3 active:scale-95 transition-transform"
                                 >
                                     <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 shrink-0">
-                                        {otherPhoto ? (
-                                            <img src={otherPhoto} alt="User" className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-gray-500 font-bold">
-                                                {otherName?.[0]}
-                                            </div>
-                                        )}
+                                        <SecureImage
+                                            src={otherPhoto}
+                                            alt="User"
+                                            className="w-full h-full object-cover"
+                                            fallback={
+                                                <div className="w-full h-full flex items-center justify-center text-gray-500 font-bold">
+                                                    {otherName?.[0]}
+                                                </div>
+                                            }
+                                        />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex justify-between items-center">
