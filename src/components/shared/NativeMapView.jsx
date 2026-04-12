@@ -141,6 +141,31 @@ const NativeMapView = ({
     }, [mapType]);
 
     // ─────────────────────────────────────────────
+    // Modo nocturno automático según hora del día
+    // Noche: 18:00 – 06:00
+    // ─────────────────────────────────────────────
+    useEffect(() => {
+        const applyNightMode = () => {
+            if (!initializedRef.current) return;
+            const hour = new Date().getHours();
+            const isNight = hour >= 18 || hour < 6;
+            NavigationPlugin.setNightMode({ enabled: isNight });
+        };
+
+        // Aplicar al inicializar el mapa (el evento mapReady dispara antes de este efecto)
+        // Usar un pequeño delay para asegurar que el mapa ya respondió a initMap
+        const timeout = setTimeout(applyNightMode, 500);
+
+        // Revisar cada 10 minutos por si el usuario cruza el umbral horario
+        const interval = setInterval(applyNightMode, 10 * 60 * 1000);
+
+        return () => {
+            clearTimeout(timeout);
+            clearInterval(interval);
+        };
+    }, []); // Solo al montar
+
+    // ─────────────────────────────────────────────
     // API imperativa expuesta via ref (useNativeMap hook)
     // ─────────────────────────────────────────────
 

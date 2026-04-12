@@ -50,6 +50,10 @@ export function useNativeMap() {
         return NavigationPlugin.setAudioGuidance({ muted });
     }, []);
 
+    const setNightMode = useCallback((enabled) => {
+        return NavigationPlugin.setNightMode({ enabled });
+    }, []);
+
     return {
         animateCamera,
         setMapType,
@@ -60,5 +64,6 @@ export function useNativeMap() {
         startNavigation,
         stopNavigation,
         setAudioGuidance,
+        setNightMode,
     };
 }

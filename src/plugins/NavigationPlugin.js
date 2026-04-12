@@ -30,6 +30,7 @@ const webStub = {
     startNavigation: async () => console.log('[NavPlugin Web] startNavigation'),
     stopNavigation: async () => console.log('[NavPlugin Web] stopNavigation'),
     setAudioGuidance: async (opts) => console.log('[NavPlugin Web] setAudioGuidance', opts),
+    setNightMode: async (opts) => console.log('[NavPlugin Web] setNightMode', opts),
     addListener: (event, cb) => {
         console.log('[NavPlugin Web] addListener:', event);
         return { remove: () => {} };
@@ -70,6 +71,7 @@ const NavigationPlugin = {
     startNavigation:  ()     => nativePlugin.startNavigation(),
     stopNavigation:   ()     => nativePlugin.stopNavigation(),
     setAudioGuidance: (opts) => nativePlugin.setAudioGuidance(opts),
+    setNightMode:     (opts) => nativePlugin.setNightMode(opts),
     addListener:      (event, cb) => nativePlugin.addListener(event, cb),
     removeAllListeners: () => nativePlugin.removeAllListeners(),
 };

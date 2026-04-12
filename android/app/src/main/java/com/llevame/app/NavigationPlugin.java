@@ -142,6 +142,15 @@ public class NavigationPlugin extends Plugin {
         impl.setAudioGuidance(call);
     }
 
+    /**
+     * Activa / desactiva el estilo nocturno del mapa.
+     * options: { enabled: boolean }
+     */
+    @PluginMethod
+    public void setNightMode(PluginCall call) {
+        impl.setNightMode(call);
+    }
+
     // ─────────────────────────────────────────────
     // Helpers para emitir eventos a JavaScript
     // ─────────────────────────────────────────────
