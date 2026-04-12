@@ -1,6 +1,5 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-import { getDatabase } from "firebase/database"; // Realtime Database
 import { getAnalytics } from "firebase/analytics";
 import { getStorage } from "firebase/storage";
 import { initializeAuth, browserLocalPersistence, browserPopupRedirectResolver } from "firebase/auth";
@@ -23,9 +22,6 @@ const app = initializeApp(firebaseConfig);
 // Firestore (para datos persistentes)
 export const db = getFirestore(app);
 
-// Realtime Database (para ubicaciones en tiempo real - más rápido)
-export const realtimeDb = getDatabase(app);
-
 // Storage
 export const storage = getStorage(app);
 
@@ -35,5 +31,5 @@ export const auth = initializeAuth(app, {
     popupRedirectResolver: browserPopupRedirectResolver
 });
 
-// Analytics
-const analytics = getAnalytics(app);
+// Analytics (side-effect only — initializes Firebase Analytics)
+getAnalytics(app);

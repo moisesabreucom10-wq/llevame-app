@@ -18,18 +18,15 @@ class BackgroundLocationService {
 
     setDriverInfo(info) {
         this.driverInfo = info;
-        // Inicializar PubNub con el ID del conductor
         if (info?.uid) {
             pubnubService.init(info.uid);
         }
-        console.log('[BGL] 👤 Driver:', info?.name);
     }
 
-    // Publicar a PubNub (tiempo real ~50ms)
     async publishToPubNub(location) {
         if (!this.driverInfo?.uid) return false;
 
-        const data = {
+        return await pubnubService.publishLocation({
             id: this.driverInfo.uid,
             name: this.driverInfo.name || 'Conductor',
             status: this.driverInfo.currentTrip ? 'in_trip' : 'online',
@@ -43,12 +40,9 @@ class BackgroundLocationService {
             phoneNumber: this.driverInfo.phoneNumber || '',
             rating: this.driverInfo.rating || 5.0,
             photoURL: this.driverInfo.photoURL || null
-        };
-
-        return await pubnubService.publishLocation(data);
+        });
     }
 
-    // Guardar en Firestore (respaldo y persistencia)
     async saveToFirestore(location) {
         if (!this.driverInfo?.uid) return false;
 
@@ -80,16 +74,12 @@ class BackgroundLocationService {
     async setOffline() {
         if (!this.driverInfo?.uid) return;
 
-        // Notificar offline via PubNub
         await pubnubService.publishOffline(this.driverInfo.uid);
 
-        // También en Firestore
         try {
             const driverRef = doc(db, 'online_drivers', this.driverInfo.uid);
             await setDoc(driverRef, { status: 'offline', updatedAt: serverTimestamp() }, { merge: true });
         } catch (e) { }
-
-        console.log('[BGL] 🔴 Offline');
     }
 
     async startBackgroundTracking(callback, driverInfo = null) {
@@ -103,8 +93,6 @@ class BackgroundLocationService {
         if (driverInfo) this.setDriverInfo(driverInfo);
 
         try {
-            console.log('[BGL] 🚀 Iniciando tracking con PubNub...');
-
             this.watcherId = await BackgroundGeolocation.addWatcher(
                 {
                     backgroundMessage: "LLEVAME - Conectando pasajeros",
@@ -115,7 +103,7 @@ class BackgroundLocationService {
                 },
                 async (location, error) => {
                     if (error) {
-                        console.error('[BGL] ❌', error.code);
+                        console.error('[BGL] Error:', error.code);
                         if (error.code === "NOT_AUTHORIZED") {
                             BackgroundGeolocation.openSettings();
                         }
@@ -131,27 +119,24 @@ class BackgroundLocationService {
                             accuracy: location.accuracy
                         };
 
-                        // 1. PUBNUB: Tiempo real (~50ms) - cada actualización
+                        // 1. PUBNUB: Tiempo real (~50ms) — cada actualización
                         await this.publishToPubNub(loc);
 
                         // 2. FIRESTORE: Cada 5 actualizaciones (respaldo)
                         this.updateCount++;
                         if (this.updateCount % 5 === 0) {
                             await this.saveToFirestore(loc);
-                            console.log(`[BGL] ✅ ${this.updateCount} updates (PubNub + Firestore)`);
                         }
 
-                        // Callback React
                         try { this.onLocationUpdate?.(loc); } catch (e) { }
                     }
                 }
             );
 
-            console.log('[BGL] ✅ Activo con PubNub, ID:', this.watcherId);
             return this.watcherId;
 
         } catch (error) {
-            console.error('[BGL] ❌', error);
+            console.error('[BGL] Error iniciando tracking:', error);
             this.watcherId = null;
             throw error;
         }
@@ -162,11 +147,11 @@ class BackgroundLocationService {
         try {
             await this.setOffline();
             await BackgroundGeolocation.removeWatcher({ id: this.watcherId });
+        } catch (error) {
+            console.error('[BGL] Error deteniendo tracking:', error);
+        } finally {
             this.watcherId = null;
             this.onLocationUpdate = null;
-            console.log('[BGL] ⏹️ Detenido');
-        } catch (error) {
-            this.watcherId = null;
         }
     }
 
