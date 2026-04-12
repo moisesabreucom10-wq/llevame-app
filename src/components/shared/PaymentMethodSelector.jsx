@@ -129,7 +129,7 @@ const PaymentMethodSelector = ({ selectedMethod, onSelect }) => {
                                         <label className="block text-sm font-bold text-gray-700 mb-1">Cédula</label>
                                         <div className="flex">
                                             <select
-                                                className="px-2 py-3 bg-gray-50 border border-yy-200 rounded-l-xl border-r-0 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                                className="px-2 py-3 bg-gray-50 border border-gray-200 rounded-l-xl border-r-0 focus:ring-2 focus:ring-indigo-500 outline-none"
                                                 value={c2pData.idType}
                                                 onChange={(e) => setC2pData({ ...c2pData, idType: e.target.value })}
                                             >
