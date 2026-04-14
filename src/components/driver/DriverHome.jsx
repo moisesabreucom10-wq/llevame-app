@@ -5,9 +5,11 @@ import Chat from '../shared/Chat';
 import { useTrip } from '../../context/TripContext';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation } from '../../context/LocationContext';
+import navigationService from '../../plugins/NavigationPlugin';
 
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../services/firebase';
+import { Capacitor } from '@capacitor/core';
 
 const DriverHome = () => {
     // Consume global online state
@@ -26,6 +28,11 @@ const DriverHome = () => {
     const [hasCenteredInitial, setHasCenteredInitial] = useState(false);
     const [isPanelExpanded, setIsPanelExpanded] = useState(true);
     const [bcvRate, setBcvRate] = useState(60.00); // Default Fallback
+
+    // Native Navigation SDK State
+    const [isNativeNavActive, setIsNativeNavActive] = useState(false);
+    const [navInitialized, setNavInitialized] = useState(false);
+    const [navError, setNavError] = useState(null);
 
     // Panels State
     const [showBottomPanel, setShowBottomPanel] = useState(true);
@@ -47,6 +54,25 @@ const DriverHome = () => {
         };
         fetchBCV();
     }, []);
+
+    // Initialize Navigation SDK when driver goes online (native only)
+    useEffect(() => {
+        if (!isDriverOnline || navInitialized) return;
+        if (!Capacitor.isNativePlatform()) return;
+
+        const initNav = async () => {
+            try {
+                await navigationService.initialize();
+                setNavInitialized(true);
+                setNavError(null);
+                console.log('[Driver] Navigation SDK initialized');
+            } catch (error) {
+                console.warn('[Driver] Nav SDK init failed:', error.message);
+                setNavError(error.message);
+            }
+        };
+        initNav();
+    }, [isDriverOnline, navInitialized]);
 
     // (Removed local storage effect for online state as it is now in Context)
 
@@ -104,7 +130,27 @@ const DriverHome = () => {
     const handleStartTrip = async () => {
         if (!currentTrip) return;
         try {
+            // Stop pickup navigation, start dropoff navigation
+            if (isNativeNavActive) {
+                await navigationService.stopNavigation();
+                setIsNativeNavActive(false);
+            }
+
             await startTrip(currentTrip.id);
+
+            // Auto-start navigation to dropoff if native SDK is ready
+            if (Capacitor.isNativePlatform() && navInitialized && currentTrip.dropoff?.coordinates) {
+                try {
+                    await navigationService.startNavigation({
+                        lat: currentTrip.dropoff.coordinates.lat,
+                        lng: currentTrip.dropoff.coordinates.lng,
+                        title: currentTrip.dropoff.address || 'Destino'
+                    });
+                    setIsNativeNavActive(true);
+                } catch (navErr) {
+                    console.warn('[Driver] Auto-nav to dropoff failed:', navErr);
+                }
+            }
         } catch (error) {
             alert('Error al iniciar el viaje');
         }
@@ -139,7 +185,17 @@ const DriverHome = () => {
             return;
         }
 
-        // 2. Payment Confirmation
+        // 2. Stop native navigation if active
+        if (isNativeNavActive) {
+            try {
+                await navigationService.stopNavigation();
+                setIsNativeNavActive(false);
+            } catch (e) {
+                console.warn('[Driver] Failed to stop nav on complete:', e);
+            }
+        }
+
+        // 3. Payment Confirmation
         const confirmMsg = currentTrip.paymentMethod?.type === 'cash'
             ? `Cobrar $${currentTrip.fare} en EFECTIVO al pasajero.`
             : `Verificar pago de $${currentTrip.fare} por ${currentTrip.paymentMethod?.type === 'pago_movil' ? 'PAGO MÓVIL' : 'TARJETA'}.`;
@@ -302,23 +358,52 @@ const DriverHome = () => {
     // If there's an active trip, render the Active Trip UI (Full Screen Mode)
     if (currentTrip) {
         return (
-            <div className="relative h-full w-full flex flex-col">
-                <div className="absolute inset-0 z-0">
-                    <Map
-                        key="active-trip-map"
-                        ref={mapRef}
-                        className="w-full h-full"
-                        mapType={mapType}
-                        centerOnLocationTrigger={centerTrigger}
-                        origin={currentLocation}
-                        destination={currentTrip.status === 'accepted' ? currentTrip.pickup.coordinates : currentTrip.dropoff.coordinates}
-                        showDirections={true}
-                        onDirectionsResult={handleDirectionsResult}
-                        markers={getMarkers()}
-                    />
-                </div>
+            <div className={`relative h-full w-full flex flex-col ${isNativeNavActive ? 'bg-transparent' : ''}`}>
+                {/* Web Map — hidden when native SDK navigation is active */}
+                {!isNativeNavActive && (
+                    <div className="absolute inset-0 z-0">
+                        <Map
+                            key="active-trip-map"
+                            ref={mapRef}
+                            className="w-full h-full"
+                            mapType={mapType}
+                            centerOnLocationTrigger={centerTrigger}
+                            origin={currentLocation}
+                            destination={currentTrip.status === 'accepted' ? currentTrip.pickup.coordinates : currentTrip.dropoff.coordinates}
+                            showDirections={true}
+                            onDirectionsResult={handleDirectionsResult}
+                            markers={getMarkers()}
+                        />
+                    </div>
+                )}
 
-                {renderMapControls()}
+                {/* Native Navigation Active Indicator */}
+                {isNativeNavActive && (
+                    <div className="absolute top-4 left-4 right-20 z-20">
+                        <div className="bg-indigo-600/90 backdrop-blur-sm text-white px-4 py-3 rounded-2xl shadow-lg flex items-center gap-3">
+                            <Navigation size={20} className="fill-white animate-pulse" />
+                            <div className="flex-1">
+                                <p className="font-bold text-sm">Navegación GPS Activa</p>
+                                <p className="text-xs text-indigo-200">
+                                    {currentTrip.status === 'accepted' ? 'Hacia el pasajero' : 'Hacia el destino'}
+                                </p>
+                            </div>
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        await navigationService.stopNavigation();
+                                        setIsNativeNavActive(false);
+                                    } catch (e) { console.warn(e); }
+                                }}
+                                className="bg-white/20 p-2 rounded-full"
+                            >
+                                <span className="text-xs font-bold">✕</span>
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {!isNativeNavActive && renderMapControls()}
 
                 {/* Active Trip Card */}
                 <div className="absolute bottom-0 left-0 right-0 z-10 bg-white rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.1)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]">
@@ -390,14 +475,36 @@ const DriverHome = () => {
                                 {/* Actions Area */}
                                 {currentTrip.status === 'accepted' ? (
                                     <div className="space-y-3">
-                                        {/* Navigation Button */}
+                                        {/* Navigation Button — Uses native SDK on Android, fallback to Google Maps URL */}
                                         <button
-                                            onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${currentTrip.pickup.coordinates.lat},${currentTrip.pickup.coordinates.lng}&travelmode=driving`, '_system')}
-                                            className="w-full py-4 bg-white border-2 border-indigo-50 text-indigo-600 font-bold rounded-2xl flex items-center justify-center gap-2 shadow-sm hover:bg-gray-50 active:scale-[0.98] transition-all"
+                                            onClick={async () => {
+                                                if (Capacitor.isNativePlatform() && navInitialized) {
+                                                    try {
+                                                        setNavError(null);
+                                                        await navigationService.startNavigation({
+                                                            lat: currentTrip.pickup.coordinates.lat,
+                                                            lng: currentTrip.pickup.coordinates.lng,
+                                                            title: 'Recoger a ' + (currentTrip.riderName || 'Pasajero')
+                                                        });
+                                                        setIsNativeNavActive(true);
+                                                    } catch (error) {
+                                                        console.error('[Driver] Native nav failed, falling back:', error);
+                                                        setNavError(error.message);
+                                                        // Fallback to external Google Maps
+                                                        window.open(`https://www.google.com/maps/dir/?api=1&destination=${currentTrip.pickup.coordinates.lat},${currentTrip.pickup.coordinates.lng}&travelmode=driving`, '_system');
+                                                    }
+                                                } else {
+                                                    window.open(`https://www.google.com/maps/dir/?api=1&destination=${currentTrip.pickup.coordinates.lat},${currentTrip.pickup.coordinates.lng}&travelmode=driving`, '_system');
+                                                }
+                                            }}
+                                            className={`w-full py-4 font-bold rounded-2xl flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-all ${isNativeNavActive ? 'bg-indigo-600 text-white' : 'bg-white border-2 border-indigo-50 text-indigo-600 hover:bg-gray-50'}`}
                                         >
-                                            <Navigation size={20} className="fill-indigo-600" />
-                                            Navegar
+                                            <Navigation size={20} className={isNativeNavActive ? 'fill-white' : 'fill-indigo-600'} />
+                                            {isNativeNavActive ? 'Navegando...' : 'Navegar'}
                                         </button>
+                                        {navError && (
+                                            <p className="text-xs text-red-500 text-center">{navError}</p>
+                                        )}
 
                                         {/* Start Trip Button */}
                                         <button

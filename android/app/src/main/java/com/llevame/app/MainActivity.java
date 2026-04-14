@@ -1,17 +1,20 @@
 package com.llevame.app;
 
 import android.os.Bundle;
-import android.os.Build;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.graphics.Color;
 
 import com.getcapacitor.BridgeActivity;
+import com.llevame.app.plugins.NavigationPlugin;
 
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Register custom plugins BEFORE super.onCreate
+        registerPlugin(NavigationPlugin.class);
+
         super.onCreate(savedInstanceState);
 
         // Configurar barra de estado negra sólida
