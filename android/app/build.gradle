@@ -57,9 +57,24 @@ dependencies {
     implementation 'androidx.credentials:credentials:1.5.0-rc01'
     implementation 'androidx.credentials:credentials-play-services-auth:1.5.0-rc01'
     implementation 'com.google.android.libraries.identity.googleid:googleid:1.1.1'
+
+    // ── Google Navigation SDK ──
+    implementation 'com.google.android.libraries.navigation:navigation:6.0.0'
+
+    // Java 8+ desugaring (required by Navigation SDK)
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs_nio:2.1.4'
 }
 
 apply from: 'capacitor.build.gradle'
+
+// Override compileOptions AFTER capacitor.build.gradle to ensure desugaring is enabled
+android {
+    compileOptions {
+        coreLibraryDesugaringEnabled true
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+}
 
 try {
     def servicesJSON = file('google-services.json')

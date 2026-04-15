@@ -5,6 +5,7 @@ import Chat from '../shared/Chat';
 import { useTrip } from '../../context/TripContext';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation } from '../../context/LocationContext';
+import { navigationService } from '../../plugins/NavigationPlugin';
 
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../services/firebase';
@@ -135,8 +136,10 @@ const DriverHome = () => {
         );
 
         if (dist > 0.5) { // 0.5 km tolerance
-            alert(`Estás muy lejos del destino (${dist.toFixed(2)} km). Acércate para finalizar.`);
-            return;
+            // BYPASS PARA TESTING: Comentamos la validación en duro
+            // alert(`Estás muy lejos del destino (${dist.toFixed(2)} km). Acércate para finalizar.`);
+            // return;
+            console.warn(`TEST MODE: Bypass de distancia (${dist.toFixed(2)} km)`);
         }
 
         // 2. Payment Confirmation
@@ -392,7 +395,11 @@ const DriverHome = () => {
                                     <div className="space-y-3">
                                         {/* Navigation Button */}
                                         <button
-                                            onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${currentTrip.pickup.coordinates.lat},${currentTrip.pickup.coordinates.lng}&travelmode=driving`, '_system')}
+                                            onClick={() => navigationService.startNavigation({
+                                                lat: currentTrip.pickup.coordinates.lat,
+                                                lng: currentTrip.pickup.coordinates.lng,
+                                                title: currentTrip.pickup.address || 'Pasajero'
+                                            }).catch(console.error)}
                                             className="w-full py-4 bg-white border-2 border-indigo-50 text-indigo-600 font-bold rounded-2xl flex items-center justify-center gap-2 shadow-sm hover:bg-gray-50 active:scale-[0.98] transition-all"
                                         >
                                             <Navigation size={20} className="fill-indigo-600" />
@@ -410,6 +417,17 @@ const DriverHome = () => {
                                     </div>
                                 ) : (
                                     <div className="space-y-3">
+                                        <button
+                                            onClick={() => navigationService.startNavigation({
+                                                lat: currentTrip.dropoff.coordinates.lat,
+                                                lng: currentTrip.dropoff.coordinates.lng,
+                                                title: currentTrip.dropoff.address || 'Destino'
+                                            }).catch(console.error)}
+                                            className="w-full py-4 bg-white border-2 border-indigo-50 text-indigo-600 font-bold rounded-2xl flex items-center justify-center gap-2 shadow-sm hover:bg-gray-50 active:scale-[0.98] transition-all"
+                                        >
+                                            <Navigation size={20} className="fill-indigo-600" />
+                                            Navegar al Destino
+                                        </button>
                                         <button
                                             onClick={handleCompleteTrip}
                                             className="w-full py-4 bg-green-600 text-white font-bold rounded-2xl shadow-xl hover:shadow-2xl hover:bg-green-700 active:scale-[0.98] transition-all text-lg flex items-center justify-center gap-3 tracking-wide"

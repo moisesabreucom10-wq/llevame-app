@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Map, User } from 'lucide-react';
+import { Home, Map, User, Star } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const Layout = () => {
@@ -14,6 +14,7 @@ const Layout = () => {
     const navItems = isDriver ? [
         { icon: Home, label: 'Inicio', path: '/' },
         { icon: Map, label: 'Viajes', path: '/trips' },
+        { icon: Star, label: 'Puntos', path: '/wallet' },
         { icon: User, label: 'Perfil', path: '/profile' },
     ] : [
         { icon: Home, label: 'Inicio', path: '/' },
@@ -35,7 +36,7 @@ const Layout = () => {
             <main className="flex-1 relative overflow-hidden">
                 <div
                     key={location.pathname}
-                    className={`h-full w-full ${direction === 'forward'
+                    className={`h-full w-full overflow-y-auto ${direction === 'forward'
                             ? 'animate-slideInRight'
                             : 'animate-slideInLeft'
                         }`}

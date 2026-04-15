@@ -16,6 +16,7 @@ import StatusBarBackground from './components/shared/StatusBarBackground';
 // Placeholder components for now
 import Profile from './components/shared/Profile';
 import TripsHistory from './components/shared/TripsHistory';
+import DriverWallet from './components/driver/DriverWallet';
 
 const ProtectedRoute = ({ children }) => {
   const { currentUser, userProfile, loading } = useAuth();
@@ -44,6 +45,12 @@ const HomeRedirect = () => {
   const { userProfile } = useAuth();
   if (userProfile?.userType === 'driver') return <DriverHome />;
   return <RiderHome />;
+};
+
+const WalletRoute = () => {
+  const { userProfile } = useAuth();
+  if (userProfile?.userType !== 'driver') return <Navigate to="/" />;
+  return <DriverWallet />;
 };
 
 function App() {
@@ -95,6 +102,7 @@ function App() {
                 <Route path="profile" element={<Profile />} />
                 <Route path="trips" element={<TripsHistory />} />
                 <Route path="history" element={<TripsHistory />} />
+                <Route path="wallet" element={<WalletRoute />} />
               </Route>
             </Routes>
           </BrowserRouter>
