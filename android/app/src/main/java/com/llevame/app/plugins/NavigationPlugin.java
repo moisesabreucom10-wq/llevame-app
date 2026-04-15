@@ -1,11 +1,8 @@
 package com.llevame.app.plugins;
 
+import android.content.Intent;
+import android.net.Uri;
 import android.util.Log;
-import android.view.View;
-import android.widget.FrameLayout;
-
-import androidx.annotation.NonNull;
-import androidx.fragment.app.FragmentActivity;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -13,248 +10,106 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
-import com.google.android.libraries.navigation.NavigationApi;
-import com.google.android.libraries.navigation.Navigator;
-import com.google.android.libraries.navigation.SupportNavigationFragment;
-import com.google.android.libraries.navigation.Waypoint;
-import com.google.android.libraries.navigation.NavigationApi.NavigatorListener;
-
-import com.llevame.app.R;
-
+/**
+ * NavigationPlugin — Stub que delega la navegación giro a giro
+ * a la app nativa de Google Maps via Intent.
+ *
+ * No depende del Navigation SDK privado de Google.
+ * La llamada JS es idéntica a la interfaz original.
+ */
 @CapacitorPlugin(name = "NavigationSDK")
 public class NavigationPlugin extends Plugin {
 
     private static final String TAG = "NavigationPlugin";
+    private boolean isNavigatingState = false;
 
-    private SupportNavigationFragment navFragment;
-    private Navigator navigator;
-    private boolean isNavigating = false;
-    private boolean termsAccepted = false;
-
-    /**
-     * Initialize the Navigation SDK. Must be called once before startNavigation.
-     * Handles Terms & Conditions dialog and Navigator acquisition.
-     */
+    /** Inicialización — siempre exitosa en el stub. */
     @PluginMethod
     public void initialize(PluginCall call) {
-        FragmentActivity activity = getActivity();
-        if (activity == null) {
-            call.reject("Activity not available");
-            return;
-        }
-
-        activity.runOnUiThread(() -> {
-            try {
-                // Show Terms & Conditions (required by Google)
-                NavigationApi.getNavigator(
-                    activity,
-                    new NavigatorListener() {
-                        @Override
-                        public void onNavigatorReady(@NonNull Navigator nav) {
-                            navigator = nav;
-                            termsAccepted = true;
-                            Log.i(TAG, "Navigator ready");
-
-                            // Create the SupportNavigationFragment
-                            navFragment = SupportNavigationFragment.newInstance();
-
-                            // Add it to the container (hidden initially)
-                            FrameLayout container = activity.findViewById(R.id.navigation_container);
-                            if (container != null) {
-                                activity.getSupportFragmentManager()
-                                    .beginTransaction()
-                                    .replace(R.id.navigation_container, navFragment)
-                                    .commitAllowingStateLoss();
-                                Log.i(TAG, "Navigation fragment attached");
-                            }
-
-                            JSObject result = new JSObject();
-                            result.put("status", "ready");
-                            call.resolve(result);
-                        }
-
-                        @Override
-                        public void onError(int errorCode) {
-                            Log.e(TAG, "Navigator error code: " + errorCode);
-                            String msg;
-                            switch (errorCode) {
-                                case NavigationApi.ErrorCode.NOT_AUTHORIZED:
-                                    msg = "API key not authorized for Navigation SDK. Check Google Cloud Console.";
-                                    break;
-                                case NavigationApi.ErrorCode.TERMS_NOT_ACCEPTED:
-                                    msg = "User declined the Navigation SDK terms.";
-                                    break;
-                                default:
-                                    msg = "Navigation SDK error code: " + errorCode;
-                            }
-                            call.reject(msg);
-                        }
-                    }
-                );
-            } catch (Exception e) {
-                Log.e(TAG, "Initialize error", e);
-                call.reject("Failed to initialize: " + e.getMessage());
-            }
-        });
-    }
-
-    /**
-     * Start turn-by-turn navigation to a destination.
-     * @param lat Destination latitude
-     * @param lng Destination longitude
-     * @param title Optional title for the destination waypoint
-     */
-    @PluginMethod
-    public void startNavigation(PluginCall call) {
-        if (navigator == null) {
-            call.reject("Navigator not initialized. Call initialize() first.");
-            return;
-        }
-
-        double lat = call.getDouble("lat", 0.0);
-        double lng = call.getDouble("lng", 0.0);
-        String title = call.getString("title", "Destino");
-
-        if (lat == 0.0 && lng == 0.0) {
-            call.reject("Invalid destination coordinates");
-            return;
-        }
-
-        FragmentActivity activity = getActivity();
-        if (activity == null) {
-            call.reject("Activity not available");
-            return;
-        }
-
-        activity.runOnUiThread(() -> {
-            try {
-                // Build destination waypoint
-                Waypoint destination = Waypoint.builder()
-                    .setLatLng(lat, lng)
-                    .setTitle(title)
-                    .build();
-
-                // Set destination and start guidance
-                navigator.setDestination(destination);
-                navigator.startGuidance();
-
-                // Show the navigation container
-                FrameLayout container = activity.findViewById(R.id.navigation_container);
-                if (container != null) {
-                    container.setVisibility(View.VISIBLE);
-                }
-
-                // Configure the navigation UI
-                if (navFragment != null) {
-                    navFragment.setTripProgressBarEnabled(true);
-                    navFragment.setSpeedLimitIconEnabled(true);
-                    navFragment.setSpeedometerEnabled(true);
-                    navFragment.setHeaderEnabled(true);
-                }
-
-                isNavigating = true;
-
-                JSObject result = new JSObject();
-                result.put("status", "navigating");
-                result.put("lat", lat);
-                result.put("lng", lng);
-                call.resolve(result);
-
-                Log.i(TAG, "Navigation started to: " + lat + ", " + lng);
-
-            } catch (Exception e) {
-                Log.e(TAG, "Start navigation error", e);
-                call.reject("Failed to start navigation: " + e.getMessage());
-            }
-        });
-    }
-
-    /**
-     * Stop the current navigation session and hide the native view.
-     */
-    @PluginMethod
-    public void stopNavigation(PluginCall call) {
-        FragmentActivity activity = getActivity();
-        if (activity == null) {
-            call.reject("Activity not available");
-            return;
-        }
-
-        activity.runOnUiThread(() -> {
-            try {
-                if (navigator != null) {
-                    navigator.stopGuidance();
-                    navigator.clearDestinations();
-                }
-
-                // Hide the navigation container
-                FrameLayout container = activity.findViewById(R.id.navigation_container);
-                if (container != null) {
-                    container.setVisibility(View.GONE);
-                }
-
-                isNavigating = false;
-
-                JSObject result = new JSObject();
-                result.put("status", "stopped");
-                call.resolve(result);
-
-                Log.i(TAG, "Navigation stopped");
-
-            } catch (Exception e) {
-                Log.e(TAG, "Stop navigation error", e);
-                call.reject("Failed to stop navigation: " + e.getMessage());
-            }
-        });
-    }
-
-    /**
-     * Check if navigation is currently active.
-     */
-    @PluginMethod
-    public void isNavigating(PluginCall call) {
+        Log.i(TAG, "NavigationPlugin stub: initialize()");
         JSObject result = new JSObject();
-        result.put("isNavigating", isNavigating);
-        result.put("termsAccepted", termsAccepted);
+        result.put("status", "ready");
         call.resolve(result);
     }
 
     /**
-     * Switches the WebView background to transparent so the native navigation
-     * view shows through from behind.
+     * Inicia navegación lanzando Google Maps con modo driving.
+     * Parámetros JS: { lat: double, lng: double, title?: string }
+     */
+    @PluginMethod
+    public void startNavigation(PluginCall call) {
+        double lat   = call.getDouble("lat", 0.0);
+        double lng   = call.getDouble("lng", 0.0);
+        String title = call.getString("title", "Destino");
+
+        if (lat == 0.0 && lng == 0.0) {
+            call.reject("Coordenadas de destino inválidas");
+            return;
+        }
+
+        try {
+            // URI de Google Maps — modo driving, con indicaciones turn-by-turn
+            String uriStr = "google.navigation:q=" + lat + "," + lng
+                    + "&mode=d";
+            Uri gmmIntentUri = Uri.parse(uriStr);
+            Intent mapIntent = new Intent(Intent.ACTION_VIEW, gmmIntentUri);
+            mapIntent.setPackage("com.google.android.apps.maps");
+
+            if (mapIntent.resolveActivity(getActivity().getPackageManager()) != null) {
+                getActivity().startActivity(mapIntent);
+            } else {
+                // Fallback: abrir en el browser si Maps no está instalado
+                String browserUri = "https://www.google.com/maps/dir/?api=1"
+                        + "&destination=" + lat + "," + lng
+                        + "&travelmode=driving";
+                Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(browserUri));
+                getActivity().startActivity(browserIntent);
+            }
+
+            isNavigatingState = true;
+
+            JSObject result = new JSObject();
+            result.put("status", "navigating");
+            result.put("lat", lat);
+            result.put("lng", lng);
+            call.resolve(result);
+
+            Log.i(TAG, "Navigation started → " + lat + ", " + lng);
+
+        } catch (Exception e) {
+            Log.e(TAG, "startNavigation error", e);
+            call.reject("Error al iniciar navegación: " + e.getMessage());
+        }
+    }
+
+    /** Detiene la navegación (en el stub solo actualiza el estado interno). */
+    @PluginMethod
+    public void stopNavigation(PluginCall call) {
+        isNavigatingState = false;
+        Log.i(TAG, "NavigationPlugin stub: stopNavigation()");
+        JSObject result = new JSObject();
+        result.put("status", "stopped");
+        call.resolve(result);
+    }
+
+    /** Devuelve el estado actual de navegación. */
+    @PluginMethod
+    public void isNavigating(PluginCall call) {
+        JSObject result = new JSObject();
+        result.put("isNavigating", isNavigatingState);
+        result.put("termsAccepted", true);
+        call.resolve(result);
+    }
+
+    /**
+     * setWebViewTransparent — no-op en el stub.
+     * En el stub no hay vista nativa de navegación detrás del WebView.
      */
     @PluginMethod
     public void setWebViewTransparent(PluginCall call) {
         boolean transparent = call.getBoolean("transparent", false);
-        FragmentActivity activity = getActivity();
-        if (activity == null) {
-            call.reject("Activity not available");
-            return;
-        }
-
-        activity.runOnUiThread(() -> {
-            try {
-                View webView = activity.findViewById(R.id.webview);
-                if (webView != null) {
-                    if (transparent) {
-                        webView.setBackgroundColor(android.graphics.Color.TRANSPARENT);
-                        if (webView instanceof android.webkit.WebView) {
-                            ((android.webkit.WebView) webView).setBackgroundColor(android.graphics.Color.TRANSPARENT);
-                        }
-                    } else {
-                        webView.setBackgroundColor(android.graphics.Color.WHITE);
-                        if (webView instanceof android.webkit.WebView) {
-                            ((android.webkit.WebView) webView).setBackgroundColor(android.graphics.Color.WHITE);
-                        }
-                    }
-                }
-
-                JSObject result = new JSObject();
-                result.put("transparent", transparent);
-                call.resolve(result);
-            } catch (Exception e) {
-                call.reject("Failed to set transparency: " + e.getMessage());
-            }
-        });
+        JSObject result = new JSObject();
+        result.put("transparent", transparent);
+        call.resolve(result);
     }
 }

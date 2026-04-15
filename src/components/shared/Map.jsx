@@ -8,9 +8,8 @@ const Map = forwardRef(({
     onCenterChange,
     origin,
     destination,
-    initialCenter,
+    initialCenter, // NEW PROP
     showDirections = false,
-    showTraffic = false,
     onDirectionsResult,
     centerOnLocationTrigger = 0,
     markers = []
@@ -19,7 +18,6 @@ const Map = forwardRef(({
     const [mapInstance, setMapInstance] = useState(null);
     const [googleApi, setGoogleApi] = useState(null);
     const [directionsRenderer, setDirectionsRenderer] = useState(null);
-    const trafficLayerRef = useRef(null);
     const { currentLocation } = useLocation();
     const markerRef = useRef(null);
     const centerChangeTimeoutRef = useRef(null);
@@ -131,21 +129,6 @@ const Map = forwardRef(({
             mapInstance.setMapTypeId(mapType);
         }
     }, [mapType, mapInstance]);
-
-    // 2b. Handle traffic layer
-    useEffect(() => {
-        if (!mapInstance || !googleApi) return;
-        if (showTraffic) {
-            if (!trafficLayerRef.current) {
-                trafficLayerRef.current = new googleApi.maps.TrafficLayer();
-            }
-            trafficLayerRef.current.setMap(mapInstance);
-        } else {
-            if (trafficLayerRef.current) {
-                trafficLayerRef.current.setMap(null);
-            }
-        }
-    }, [showTraffic, mapInstance, googleApi]);
 
     // 3. Update current location marker with premium design
     useEffect(() => {

@@ -36,11 +36,6 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
-
-        <!-- Google Maps / Navigation SDK API Key -->
-        <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyBfItBX3Ju37NAqzvO4ORh_CdntCYR_pFc" />
     </application>
 
     <!-- Permissions -->

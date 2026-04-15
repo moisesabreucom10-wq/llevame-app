@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 
 import { useAuth } from '../../context/AuthContext';
-import { ArrowLeft, Camera as CameraIcon, User, LogOut, Car, Shield, Star, Edit2, CheckCircle, X, MessageCircle, TrendingUp, Lock, Mail, Key, ChevronRight, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Camera as CameraIcon, User, LogOut, Car, Shield, Star, Edit2, CheckCircle, X, MessageCircle, TrendingUp, Lock, Mail, Key, ChevronRight, MessageSquare, AlertCircle, Clock, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { storage, db, auth } from '../../services/firebase';
 import { updateProfile, verifyBeforeUpdateEmail, updatePassword } from 'firebase/auth';
-import { doc, setDoc, addDoc, serverTimestamp, query, where, orderBy, limit, collection, getDocs, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, addDoc, serverTimestamp, query, where, orderBy, limit, collection, getDocs, onSnapshot, getDoc } from 'firebase/firestore';
 import { ref, getDownloadURL, uploadBytes } from 'firebase/storage';
 import SecureImage from './SecureImage';
 import Chat from './Chat';
+import VerificationFlow from '../driver/VerificationFlow';
 
 const Profile = () => {
     const { userProfile, logout, currentUser, updateUserProfile } = useAuth();
@@ -18,6 +19,13 @@ const Profile = () => {
     const [uploading, setUploading] = useState(false);
     const [progressMsg, setProgressMsg] = useState('');
     const [isEditingVehicle, setIsEditingVehicle] = useState(false);
+    const [showVerificationFlow, setShowVerificationFlow] = useState(false);
+
+    // Identity editing state
+    const [isEditingIdentity, setIsEditingIdentity] = useState(false);
+    const [identityForm, setIdentityForm] = useState({ firstName: '', lastName: '', alias: '', cedula: '', cedulaPrefix: 'V' });
+    const [identityError, setIdentityError] = useState('');
+    const [savingIdentity, setSavingIdentity] = useState(false);
 
     // Feedback State
     const [showFeedback, setShowFeedback] = useState(false);
@@ -190,6 +198,82 @@ const Profile = () => {
         }
     };
 
+    // ─── Guardar datos de identidad (con validación de unicidad) ────────────
+    const handleSaveIdentity = async () => {
+        setIdentityError('');
+        const { firstName, lastName, alias, cedula, cedulaPrefix } = identityForm;
+
+        if (!firstName.trim() || !lastName.trim()) {
+            return setIdentityError('El nombre y apellido son obligatorios.');
+        }
+
+        // Validar formato de cédula si se ingresa
+        const cedulaRaw = cedula.replace(/[^0-9]/g, '');
+        if (cedula && (cedulaRaw.length < 6 || cedulaRaw.length > 8)) {
+            return setIdentityError('La cédula debe tener entre 6 y 8 dígitos.');
+        }
+
+        // Validar alias: solo letras, números, guiones bajos
+        const cleanAlias = alias.replace(/^@/, '').trim();
+        if (alias && !/^[a-zA-Z0-9_]{3,20}$/.test(cleanAlias)) {
+            return setIdentityError('El alias solo puede tener letras, números y _ (3-20 caracteres).');
+        }
+
+        setSavingIdentity(true);
+        try {
+            const uid = currentUser.uid;
+            const updates = {
+                firstName: firstName.trim(),
+                lastName: lastName.trim(),
+                name: `${firstName.trim()} ${lastName.trim()}`,
+            };
+
+            // ── Verificar unicidad de cédula ──
+            if (cedula) {
+                const cedulaId = `${cedulaPrefix}-${cedulaRaw}`;
+                const cedulaRef = doc(db, 'cedulas_index', cedulaId);
+                const cedulaSnap = await getDoc(cedulaRef);
+
+                if (cedulaSnap.exists() && cedulaSnap.data().uid !== uid) {
+                    setSavingIdentity(false);
+                    return setIdentityError('Esta cédula ya está registrada por otro usuario.');
+                }
+
+                // Guardar índice
+                await setDoc(cedulaRef, { uid, registeredAt: serverTimestamp() });
+                updates.cedula = cedulaId;
+                updates.cedulaDisplay = `${cedulaPrefix}-${cedulaRaw.replace(/(\d)(?=(\d{3})+$)/g, '$1.')}`;
+            }
+
+            // ── Verificar unicidad de alias ──
+            if (cleanAlias) {
+                const aliasRef = doc(db, 'aliases_index', cleanAlias.toLowerCase());
+                const aliasSnap = await getDoc(aliasRef);
+
+                if (aliasSnap.exists() && aliasSnap.data().uid !== uid) {
+                    setSavingIdentity(false);
+                    return setIdentityError('Este alias ya está en uso por otro usuario.');
+                }
+
+                await setDoc(aliasRef, { uid });
+                updates.alias = `@${cleanAlias.toLowerCase()}`;
+            }
+
+            // Guardar en perfil
+            await setDoc(doc(db, 'llevame_users', uid), updates, { merge: true });
+            if (auth.currentUser) {
+                await updateProfile(auth.currentUser, { displayName: updates.name });
+            }
+            updateUserProfile(updates);
+            setIsEditingIdentity(false);
+        } catch (err) {
+            console.error('Error guardando identidad:', err);
+            setIdentityError('Error al guardar: ' + err.message);
+        } finally {
+            setSavingIdentity(false);
+        }
+    };
+
     const handleChangeEmail = async () => {
         if (!securityForm.email || !securityForm.email.includes('@')) return alert("Email inválido");
         try {
@@ -231,14 +315,15 @@ const Profile = () => {
     if (!userProfile) return <div className="p-8 text-center">Cargando perfil...</div>;
 
     const getInitials = () => {
-        if (!userProfile?.name) return 'U';
-        return userProfile.name
-            .split(' ')
-            .map(n => n[0])
-            .join('')
-            .toUpperCase()
-            .substring(0, 2);
+        const fullName = userProfile?.firstName
+            ? `${userProfile.firstName} ${userProfile.lastName || ''}`
+            : (userProfile?.name || 'U');
+        return fullName.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
     };
+
+    const displayName = userProfile?.firstName
+        ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim()
+        : (userProfile?.name || 'Usuario');
 
     const isDriver = userProfile.userType === 'driver';
     const displayPhoto = localPhotoUrl || userProfile.photoURL;
@@ -310,7 +395,15 @@ const Profile = () => {
                         </div>
                     ) : (
                         <div className="flex items-center justify-center gap-2 mt-4">
-                            <h2 className="text-2xl font-bold">{userProfile.name || 'Usuario'}</h2>
+                            <div className="text-center">
+                                <h2 className="text-2xl font-bold">{displayName}</h2>
+                                {userProfile?.alias && <p className="text-gray-400 text-sm mt-0.5">{userProfile.alias}</p>}
+                                {userProfile?.cedula && (
+                                    <p className="text-gray-500 text-xs mt-0.5 font-mono">
+                                        CI: {userProfile.cedulaDisplay || userProfile.cedula}
+                                    </p>
+                                )}
+                            </div>
                             <button
                                 onClick={() => {
                                     setTempName(userProfile.name || '');
@@ -352,6 +445,128 @@ const Profile = () => {
                     <span className="text-xs text-gray-500 font-medium">
                         {userProfile.ratingCount ? `${userProfile.ratingCount} Reseñas` : 'Sin Calif.'}
                     </span>
+                </div>
+            </div>
+
+            {/* ── INFORMACIÓN PERSONAL (nombre, apellido, alias, cédula) ── */}
+            <div className="px-6 mt-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <button
+                        onClick={() => {
+                            setIdentityForm({
+                                firstName: userProfile?.firstName || '',
+                                lastName: userProfile?.lastName || '',
+                                alias: (userProfile?.alias || '').replace(/^@/, ''),
+                                cedula: (userProfile?.cedula || '').replace(/^[VE]-/, ''),
+                                cedulaPrefix: userProfile?.cedula?.startsWith('E') ? 'E' : 'V',
+                            });
+                            setIdentityError('');
+                            setIsEditingIdentity(!isEditingIdentity);
+                        }}
+                        className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                                <User size={20} />
+                            </div>
+                            <span className="font-bold text-gray-800">Información Personal</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {userProfile?.cedula && (
+                                <span className="text-xs bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                                    <CheckCircle size={10} /> Cédula registrada
+                                </span>
+                            )}
+                            <ChevronRight className={`text-gray-400 transition-transform ${isEditingIdentity ? 'rotate-90' : ''}`} />
+                        </div>
+                    </button>
+
+                    {isEditingIdentity && (
+                        <div className="p-4 pt-2 space-y-4 border-t border-gray-100">
+
+                            {/* Nombre y Apellido */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400 uppercase mb-1 block">Nombre *</label>
+                                    <input
+                                        type="text"
+                                        value={identityForm.firstName}
+                                        onChange={e => setIdentityForm(p => ({ ...p, firstName: e.target.value }))}
+                                        placeholder="Juan"
+                                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-blue-500 transition-colors"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400 uppercase mb-1 block">Apellido *</label>
+                                    <input
+                                        type="text"
+                                        value={identityForm.lastName}
+                                        onChange={e => setIdentityForm(p => ({ ...p, lastName: e.target.value }))}
+                                        placeholder="Pérez"
+                                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-blue-500 transition-colors"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Alias */}
+                            <div>
+                                <label className="text-xs font-bold text-gray-400 uppercase mb-1 block">Alias (usuario único)</label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">@</span>
+                                    <input
+                                        type="text"
+                                        value={identityForm.alias}
+                                        onChange={e => setIdentityForm(p => ({ ...p, alias: e.target.value.replace(/^@/, '').replace(/ /g, '_') }))}
+                                        placeholder="juancho23"
+                                        className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-8 pr-3 py-2.5 text-sm outline-none focus:border-blue-500 transition-colors"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Cédula */}
+                            <div>
+                                <label className="text-xs font-bold text-gray-400 uppercase mb-1 block">Cédula de Identidad</label>
+                                <div className="flex gap-2">
+                                    <select
+                                        value={identityForm.cedulaPrefix}
+                                        onChange={e => setIdentityForm(p => ({ ...p, cedulaPrefix: e.target.value }))}
+                                        className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:border-blue-500 transition-colors"
+                                    >
+                                        <option value="V">V</option>
+                                        <option value="E">E</option>
+                                    </select>
+                                    <input
+                                        type="tel"
+                                        value={identityForm.cedula}
+                                        onChange={e => setIdentityForm(p => ({ ...p, cedula: e.target.value.replace(/[^0-9]/g, '') }))}
+                                        placeholder="12345678"
+                                        maxLength={8}
+                                        className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono outline-none focus:border-blue-500 transition-colors"
+                                    />
+                                </div>
+                                {userProfile?.cedula && (
+                                    <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
+                                        <Shield size={10} /> Cédula actual: <span className="font-mono font-bold">{userProfile.cedulaDisplay || userProfile.cedula}</span>
+                                    </p>
+                                )}
+                            </div>
+
+                            {identityError && (
+                                <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl p-3">
+                                    <AlertCircle size={14} className="text-red-500 shrink-0" />
+                                    <p className="text-xs text-red-700 font-medium">{identityError}</p>
+                                </div>
+                            )}
+
+                            <button
+                                onClick={handleSaveIdentity}
+                                disabled={savingIdentity}
+                                className="w-full py-3 bg-black text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50"
+                            >
+                                {savingIdentity ? 'Guardando...' : 'Guardar Información'}
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -583,6 +798,101 @@ const Profile = () => {
                         )}
                     </div>
                 </div>
+            )}
+
+            {/* ---- SECCIÓN DE VERIFICACIÓN (solo para conductores) ---- */}
+            {isDriver && (() => {
+                const vs = userProfile?.verificationStatus;
+                const isVerified = userProfile?.isVerified;
+
+                if (isVerified || vs === 'approved') {
+                    return (
+                        <div className="px-6 mt-6">
+                            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center gap-3">
+                                <div className="p-2 bg-emerald-100 rounded-xl text-emerald-600">
+                                    <CheckCircle size={22} />
+                                </div>
+                                <div className="flex-1">
+                                    <p className="font-bold text-emerald-800">Cuenta Verificada ✓</p>
+                                    <p className="text-xs text-emerald-600 mt-0.5">Tu perfil está activo y puedes recibir viajes</p>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                }
+
+                if (vs === 'pending') {
+                    return (
+                        <div className="px-6 mt-6">
+                            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
+                                <div className="p-2 bg-amber-100 rounded-xl text-amber-600">
+                                    <Clock size={22} />
+                                </div>
+                                <div className="flex-1">
+                                    <p className="font-bold text-amber-800">Verificación en proceso</p>
+                                    <p className="text-xs text-amber-600 mt-0.5">Nuestro equipo revisará tus documentos en 24-48h</p>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                }
+
+                if (vs === 'rejected') {
+                    return (
+                        <div className="px-6 mt-6">
+                            <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="p-2 bg-red-100 rounded-xl text-red-600">
+                                        <XCircle size={22} />
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-red-800">Verificación Rechazada</p>
+                                        {userProfile?.verificationRejectReason && (
+                                            <p className="text-xs text-red-600 mt-0.5">{userProfile.verificationRejectReason}</p>
+                                        )}
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setShowVerificationFlow(true)}
+                                    className="w-full mt-2 py-3 bg-red-600 text-white font-bold rounded-xl text-sm active:scale-95 transition-all"
+                                >
+                                    Reenviar Documentos
+                                </button>
+                            </div>
+                        </div>
+                    );
+                }
+
+                // No verificado — mostrar botón de inicio
+                return (
+                    <div className="px-6 mt-6">
+                        <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl p-5 shadow-lg shadow-indigo-200">
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="p-2 bg-white/20 rounded-xl">
+                                    <Shield size={22} className="text-white" />
+                                </div>
+                                <div>
+                                    <p className="font-black text-white">¡Verifica tu cuenta!</p>
+                                    <p className="text-xs text-indigo-200">Necesario para recibir viajes</p>
+                                </div>
+                            </div>
+                            <p className="text-indigo-100 text-xs mb-4 leading-relaxed">
+                                Sube tu cédula, una selfie y los documentos de tu vehículo para que tu equipo te apruebe.
+                            </p>
+                            <button
+                                onClick={() => setShowVerificationFlow(true)}
+                                className="w-full py-3 bg-white text-indigo-700 font-black rounded-xl text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg"
+                            >
+                                <Shield size={16} /> Iniciar Verificación
+                            </button>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* Modal de Verificación */}
+            {showVerificationFlow && (
+                <VerificationFlow onClose={() => setShowVerificationFlow(false)} />
             )}
 
             {/* Menu Options - FEEDBACK BUTTON */}
